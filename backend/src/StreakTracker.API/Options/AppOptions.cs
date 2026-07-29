@@ -12,4 +12,10 @@ public class AppOptions
     /// bu yuzden canliya cikarken gercek alan adiyla degistirilmelidir.
     /// </summary>
     public string PublicBaseUrl { get; set; } = "http://localhost:5157";
+
+    /// <summary>
+    /// Next.js arayuzunun adresi. GitHub girisi tamamlandiktan sonra
+    /// kullanici bu adrese geri yonlendirilir.
+    /// </summary>
+    public string FrontendBaseUrl { get; set; } = "http://localhost:3000";
 }

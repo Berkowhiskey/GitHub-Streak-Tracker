@@ -50,3 +50,7 @@ rozet-onizleme-*.svg
 # ---------- DataProtection anahtarlari (token sifreleme) ----------
 # Bu anahtarlar sirdir; sizmasi halinde kayitli access token'lar cozulebilir.
 .dataprotection-keys/
+
+# ---------- GitHub App private key ----------
+# App'in imzalama anahtari; sizarsa bot kimligiyle islem yapilabilir.
+*.pem

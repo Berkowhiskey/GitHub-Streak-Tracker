@@ -11,18 +11,18 @@ namespace StreakTracker.API.Services;
 public class NotificationService : INotificationService
 {
     private readonly AppDbContext _dbContext;
-    private readonly IGitHubService _gitHubService;
+    private readonly IGitHubAppService _gitHubAppService;
     private readonly IStreakService _streakService;
     private readonly ILogger<NotificationService> _logger;
 
     public NotificationService(
         AppDbContext dbContext,
-        IGitHubService gitHubService,
+        IGitHubAppService gitHubAppService,
         IStreakService streakService,
         ILogger<NotificationService> logger)
     {
         _dbContext = dbContext;
-        _gitHubService = gitHubService;
+        _gitHubAppService = gitHubAppService;
         _streakService = streakService;
         _logger = logger;
     }
@@ -181,7 +181,30 @@ public class NotificationService : INotificationService
     }
 
     /// <summary>
+    /// Kullanicinin GitHub App kurulum kimligini dondurur.
+    /// Veritabaninda yoksa GitHub'a sorar ve sonucu kaydeder.
+    /// </summary>
+    private async Task<long?> ResolveInstallationIdAsync(User user, CancellationToken cancellationToken)
+    {
+        if (user.GitHubAppInstallationId is { } cached)
+            return cached;
+
+        var installationId = await _gitHubAppService.GetInstallationIdAsync(
+            user.GitHubUsername, cancellationToken);
+
+        if (installationId is not null)
+        {
+            user.GitHubAppInstallationId = installationId;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        return installationId;
+    }
+
+    /// <summary>
     /// Bildirimi GitHub'a gonderir ve sonucu - basarili da olsa basarisiz da olsa - loglar.
+    /// Yorum, kullanicinin kendisi yerine <b>bot kimligiyle</b> atilir; aksi halde
+    /// GitHub "kendi eylemin" sayar ve telefona push bildirimi dusmez.
     /// </summary>
     private async Task<NotificationResult> DispatchAsync(
         User user,
@@ -189,6 +212,23 @@ public class NotificationService : INotificationService
         bool isTest,
         CancellationToken cancellationToken)
     {
+        if (!_gitHubAppService.IsConfigured)
+        {
+            return NotificationResult.Skipped(
+                "GitHub App yapilandirilmamis. Bildirimler bot kimligi olmadan gonderilemez.");
+        }
+
+        var installationId = await ResolveInstallationIdAsync(user, cancellationToken);
+
+        if (installationId is null)
+        {
+            _logger.LogInformation(
+                "{Username} GitHub App'i kurmamis; bildirim gonderilemedi.", user.GitHubUsername);
+
+            return NotificationResult.Skipped(
+                "Bildirimlerin telefonuna dusebilmesi icin GitHub App'i kurman gerekiyor.");
+        }
+
         var log = new NotificationLog
         {
             UserId = user.Id,
@@ -200,8 +240,8 @@ public class NotificationService : INotificationService
 
         try
         {
-            await _gitHubService.SendNotificationCommentAsync(
-                user.AccessToken,
+            await _gitHubAppService.SendNotificationCommentAsync(
+                installationId.Value,
                 user.GitHubUsername,
                 user.PrivateNotificationRepoName!,
                 user.NotificationIssueNumber!.Value,

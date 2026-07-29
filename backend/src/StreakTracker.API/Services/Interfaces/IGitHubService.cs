@@ -65,16 +65,7 @@ public interface IGitHubService
         string username,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Bildirim Issue'suna @mention iceren bir yorum ekler.
-    /// GitHub Mobile bu yorumu aninda push bildirimi olarak kullaniciya iletir -
-    /// projenin temel bildirim mekanizmasi budur.
-    /// </summary>
-    Task SendNotificationCommentAsync(
-        string accessToken,
-        string username,
-        string repositoryName,
-        int issueNumber,
-        string message,
-        CancellationToken cancellationToken = default);
+    // Not: Bildirim yorumlari artik bu servis uzerinden DEGIL, IGitHubAppService
+    // uzerinden bot kimligiyle gonderilir. GitHub, kullanicinin kendi eylemleri icin
+    // bildirim uretmedigi icin yorumun farkli bir kimlikten gelmesi zorunludur.
 }

@@ -259,3 +259,63 @@ Geliştiricilerin GitHub üzerindeki "streak" (kesintisiz günlük kod yazma ser
   * **Test yan etkisi temizlendi:** Test sırasında 21'e alınan bildirim saati 20'ye geri alındı.
   * ⚠️ **Kalan not:** `docker-compose.yml` içindeki geliştirme veritabanı şifresi hâlâ açık metin. Canlıya çıkarken environment variable'a taşınmalı.
 
+---
+
+#### 🔹 FAZ 6 — Frontend Arayüzü (Next.js + Tailwind + shadcn/ui)
+
+* **29 Temmuz 2026, 09:30** - **Backend'de tarayıcı akışı için düzenleme:** `AuthController.Callback` artık JSON yerine **frontend'e yönlendirme** yapıyor ve JWT'yi `HttpOnly` çereze yazıyor.
+  * **Güvenlik kararı:** Token `localStorage` yerine `HttpOnly` çerezde tutuluyor — JavaScript okuyamadığı için XSS ile çalınamaz.
+  * `JwtBearerEvents.OnMessageReceived` ile çerezden token okunuyor; `Authorization` başlığı varsa ona dokunulmuyor, **Swagger ve curl çalışmaya devam ediyor**.
+  * Hata durumlarında da frontend'e anlamlı `?error=` parametresiyle dönülüyor. `POST /api/v1/auth/logout` eklendi.
+* **29 Temmuz 2026, 09:35** - **[Adım 6.1]** `frontend/` oluşturuldu: **Next.js 16.2.12**, React 19.2, TypeScript, Tailwind v4, App Router. `shadcn/ui` kuruldu (button, card, label, switch, input, select, separator, skeleton). `layout.tsx`'te `lang="tr"` ve **dark mode varsayılan**.
+  * ⚠️ **Kritik tespit:** `create-next-app`, `frontend/AGENTS.md` ile *"Bu bildiğin Next.js değil, `node_modules/next/dist/docs/` içindeki rehberi oku"* uyarısı bırakmış. Dokümanlar okundu ve iki breaking change'e göre kod yazıldı: **`params`/`searchParams` artık `Promise`** (await zorunlu) ve **Turbopack varsayılan**.
+  * **Çözülen Hata:** shadcn'in yeni sürümü Radix yerine **Base UI** kullanıyor; `Button` bileşeninde `asChild` prop'u yok (TS2322). Landing'deki giriş bağlantısı `buttonVariants()` sınıflarıyla `<a>` olarak yazıldı — prop API'sine bağımlılık ortadan kalktı.
+* **29 Temmuz 2026, 09:40** - `lib/api.ts` yazıldı: backend DTO'larıyla birebir eşleşen TypeScript tipleri ve tüm endpoint'leri saran istemci. Her istek `credentials: "include"` gönderir; `ApiError` sınıfı backend'in `ProblemDetails` yanıtlarını taşır ve 401'i ayırt eder.
+* **29 Temmuz 2026, 09:44** - **[Adım 6.2]** `app/page.tsx` (landing) yazıldı — Server Component, `await searchParams` ile callback hataları kullanıcıya Türkçe gösteriliyor. `app/gizlilik/page.tsx` eklendi: hangi iznin **neden** istendiği, nelerin saklandığı/saklanmadığı ve silme hakkı açıkça yazıldı.
+* **29 Temmuz 2026, 09:48** - **[Adım 6.2]** `app/onboarding/page.tsx` yazıldı. **KVKK yaklaşımı:** Onay kutusu işaretlenmeden buton pasif; ne yapılacağı üç madde hâlinde açıkça anlatılıyor (gizli repo, Issue, katkı takvimi okuma) ve *"kodlarını okumuyoruz"* ayrıca belirtiliyor. `repo` izninin neden zorunlu olduğu ayrı bir uyarı kutusunda açıklanıyor.
+* **29 Temmuz 2026, 09:52** - **[Adım 6.3]** `app/dashboard/page.tsx` ve bileşenleri yazıldı:
+  * Streak kartları (güncel seri, rekor, bugünkü durum) — seri yoksa alev sönük çizilir.
+  * `components/contribution-heatmap.tsx` — GitHub tarzı katkı takvimi; geniş içerik kendi içinde yatay kayar, sayfa gövdesi kaymaz.
+  * `components/copy-field.tsx` — rozet Markdown/HTML kodları için kopyalama alanı.
+  * Bildirim ayarları: saat seçimi (UTC + yerel saat karşılığı gösterilir), bildirimleri aç/kapat, **test bildirimi gönder**.
+  * **KVKK silme hakkı:** onay soran "Hesabımı ve verilerimi sil" bölümü; GitHub'daki gizli reponun silinmeyeceği açıkça belirtiliyor.
+* **29 Temmuz 2026, 09:57** - **FAZ 6 TAMAMLANDI ✅ — CANLI DOĞRULANDI**
+  * Backend build **0 warning / 0 error**, test **29/29 passed**.
+  * Frontend `npx tsc --noEmit` → **hatasız**, `npm run build` → **başarılı** (4 sayfa üretildi).
+  * Backend + frontend birlikte çalıştırıldı: `GET localhost:3000/` → **200** (içerik doğrulandı), `?error=access_denied` → Türkçe hata mesajı görünüyor, `/gizlilik` → **200**, backend login → **302** doğru scope'larla GitHub'a gidiyor.
+  * ⏳ **Bekleyen:** Kullanıcının tarayıcıdan uçtan uca akışı denemesi (giriş → onboarding → dashboard). Mevcut oturum JSON tabanlıydı; çerez akışı için yeniden giriş gerekiyor.
+
+---
+
+#### 🔹 FAZ 7 — Kritik Bildirim Hatasının Düzeltilmesi (GitHub App'e Geçiş) + Tipografi
+
+* **29 Temmuz 2026, 10:35** - 🐞 **KRİTİK HATA TESPİT EDİLDİ.** Kullanıcı, test bildiriminin Issue'ya düştüğünü ama **telefona push gelmediğini** bildirdi.
+  * **Kök neden (araştırmayla doğrulandı):** GitHub, **kullanıcının kendi yaptığı eylemler için ona bildirim göndermez** — kendi kendini `@mention` etse bile. Kapatılabilir bir ayarı da yok.
+  * Bizim sistemde yorum, **kullanıcının kendi access token'ıyla, kendi adına** atılıyordu. Dolayısıyla GitHub bunu "kendi yorumun" sayıp bildirim üretmiyordu. Yorum Issue'da görünüyor ama push doğmuyordu.
+  * **Bu, projenin temel hilesini işlevsiz bırakan bir tasarım hatasıydı.** Kullanıcının "Inbox'a düşürsek olur mu?" sorusu doğru yöndeydi ama sorun *nereye* değil, **kim olarak** yazdığımızdı.
+* **29 Temmuz 2026, 10:42** - **Çözüm kararı: GitHub App'e geçiş.** Alternatif olan "bot hesabı + otomatik collaborator" yöntemi de değerlendirildi; GitHub App seçildi çünkü izinler **yalnızca bildirim reposuna** sınırlanabiliyor ve bu, uzun süredir açık olan geniş `repo` scope'u endişesini de hafifletiyor.
+* **29 Temmuz 2026, 10:50** - `Options/GitHubAppOptions.cs` yazıldı. Private key hem doğrudan içerik hem de **dosya yolu** (`PrivateKeyPath`) olarak verilebiliyor — PEM'i JSON'a taşımak zahmetli olduğu için. `.gitignore`'a `*.pem` eklendi.
+* **29 Temmuz 2026, 10:56** - `Services/GitHubAppService.cs` yazıldı:
+  * `GenerateAppJwt` — App private key'i ile **RS256** imzalı, 9 dakikalık JWT. Saat kaymalarına karşı `notBefore` 60 saniye geriden başlatılıyor (GitHub önerisi). `CacheSignatureProviders=false` ile RSA nesnesi serbest bırakıldıktan sonra yeniden kullanım hatası engellendi.
+  * `GetInstallationIdAsync` — kullanıcı App'i kurmuşsa kurulum kimliği; kurmamışsa `null` (hata değil, beklenen durum).
+  * `SendNotificationCommentAsync` — installation token ile yorum **`streaktracker[bot]` kimliğiyle** atılır. Bildirimin doğmasını sağlayan şey budur.
+* **29 Temmuz 2026, 11:00** - `NotificationService` bot üzerinden gönderecek şekilde güncellendi. `IGitHubService.SendNotificationCommentAsync` **kaldırıldı** — artık bildirim üretmediği için tutulması yanıltıcı olurdu.
+  * **Dürüstlük kararı:** App kurulu değilse "gönderildi" denmiyor; `sent:false` ve *"GitHub App'i kurman gerekiyor"* mesajı dönüyor. Sessizce çalışmayan bir bildirim göndermektense açıkça söylemek tercih edildi.
+  * `User.GitHubAppInstallationId` alanı eklendi (önbellek) ve `AddGitHubAppInstallationId` migration'ı uygulandı.
+* **29 Temmuz 2026, 11:04** - `GET /api/v1/users/me/app-status` eklendi (kurulumu GitHub'a sorar, DB'yi tazeler). Frontend'e `components/app-install-notice.tsx` eklendi: neden gerektiğini açıklayan uyarı + "GitHub App'i kur" + "Kurdum, kontrol et" akışı.
+* **29 Temmuz 2026, 10:20** - **Tipografi:** Kullanıcı font tercihini bildirdi; Geist yerine **Inter** (arayüz) + **JetBrains Mono** (kod alanları) kullanılmaya başlandı. Türkçe karakterler için `latin-ext` alt kümesi dahil edildi.
+* **29 Temmuz 2026, 11:09** - **Kod tarafı tamamlandı:** backend build **0 warning / 0 error**, test **29/29 passed**, frontend build **başarılı**.
+* **29 Temmuz 2026, 12:50** - Kullanıcı GitHub App'i oluşturdu (`AppId: 4422641`, slug `streaktracker-dev`) ancak kurulum adımında takıldı. Ortam incelendi ve **iki hata tespit edildi — ikisi de asistan kaynaklıydı:**
+  * **Hata 1 (yanlış varsayım):** `.pem` dosyasının adı tahmin edilmişti (`streaktracker.pem`), oysa GitHub dosyayı tarihli adla indiriyor (`streaktracker-dev.2026-07-29.private-key.pem`). `PrivateKeyPath` gerçek dosya adıyla düzeltildi.
+  * **Teşhis notu:** `dotnet run --no-build` çalıştırıldığında `bin/` altındaki **eski** `appsettings.Development.json` kopyası okunuyordu; ayrıca önceki test sürecinde kalan bir `StreakTracker.API` süreci 5157 portunu tutuyor ve eski yapılandırmayla yanıt veriyordu. Süreç sonlandırılıp build alınarak doğrulama yapıldı.
+  * **Hata 2 (kod hatası):** GitHub App JWT'si `iat` (issued at) claim'i olmadan üretiliyordu; GitHub bunu zorunlu tutuyor ve `401 - Missing 'issued at' claim ('iat') in assertion` dönüyordu. `JwtSecurityToken` bu claim'i kendiliğinden eklemiyor — `EpochTime.GetIntDate` ile elle eklendi.
+* **29 Temmuz 2026, 13:16** - ✅ **GITHUB APP ENTEGRASYONU CANLI DOĞRULANDI**
+  * `GET /users/me/app-status` → `{"installed":true,"appConfigured":true}`
+  * `POST /notifications/test` → `{"sent":true}`
+  * Log: *"Bildirim yorumu **bot kimligiyle** gonderildi. Kullanici: Berkowhiskey, Issue: #1"*
+  * `users.GitHubAppInstallationId = 149805682` önbelleğe alındı; sonraki bildirimlerde GitHub'a kurulum sorgusu yapılmayacak.
+* **29 Temmuz 2026, 13:25** - 🎉 **PUSH BİLDİRİMİ TELEFONA DÜŞTÜ — PROJENİN TEMEL HİLESİ DOĞRULANDI**
+  * Kullanıcı teyit etti: bildirim GitHub Mobile üzerinden telefona push olarak ulaştı.
+  * Ayrıca **arayüzden** (dashboard → "Test gönder") gönderilen bildirim de başarıyla düştü; frontend → backend → GitHub App → GitHub Mobile zinciri uçtan uca çalışıyor.
+  * **Sonuç:** GitHub App'e geçiş kararı doğruydu. Kullanıcının kendi kimliğiyle atılan yorum bildirim üretmiyordu; bot kimliğiyle atılan yorum üretiyor. Faz 7 kapandı ✅
+

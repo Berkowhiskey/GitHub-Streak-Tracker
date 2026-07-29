@@ -333,31 +333,6 @@ public class GitHubService : IGitHubService
         return new NotificationRepoSetup(repoName, issueNumber, alreadySetUp);
     }
 
-    public async Task SendNotificationCommentAsync(
-        string accessToken,
-        string username,
-        string repositoryName,
-        int issueNumber,
-        string message,
-        CancellationToken cancellationToken = default)
-    {
-        var client = CreateOctokitClient(accessToken);
-
-        try
-        {
-            await client.Issue.Comment.Create(username, repositoryName, issueNumber, message);
-
-            _logger.LogInformation(
-                "Bildirim yorumu gonderildi. Kullanici: {Username}, Issue: #{Number}",
-                username, issueNumber);
-        }
-        catch (Exception ex)
-        {
-            throw WrapGitHubException(ex,
-                $"Bildirim yorumu gonderilemedi ({username}/{repositoryName}#{issueNumber}).");
-        }
-    }
-
     // -----------------------------------------------------------------------
     // Yardimcilar
     // -----------------------------------------------------------------------

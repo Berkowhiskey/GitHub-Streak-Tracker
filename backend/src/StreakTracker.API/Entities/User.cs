@@ -31,6 +31,13 @@ public class User
     /// <summary>Gizli repodaki sabit bildirim Issue'sunun numarasi. Bildirimler bu Issue'ya yorum olarak dusulur.</summary>
     public int? NotificationIssueNumber { get; set; }
 
+    /// <summary>
+    /// Kullanicinin hesabindaki GitHub App kurulum kimligi.
+    /// Bildirimler bu kurulum uzerinden bot kimligiyle gonderilir; null ise
+    /// kullanici App'i henuz kurmamistir ve bildirim gonderilemez.
+    /// </summary>
+    public long? GitHubAppInstallationId { get; set; }
+
     /// <summary>Kullaniciya bildirim gonderilecek saat (UTC, 0-23). Varsayilan 20:00 UTC.</summary>
     public int PreferredNotificationHourUtc { get; set; } = 20;
 

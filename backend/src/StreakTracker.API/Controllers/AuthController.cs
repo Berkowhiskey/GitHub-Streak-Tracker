@@ -1,7 +1,9 @@
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 using StreakTracker.API.Models.Auth;
+using StreakTracker.API.Options;
 using StreakTracker.API.Services.Interfaces;
 
 namespace StreakTracker.API.Controllers;
@@ -12,12 +14,23 @@ public class AuthController : BaseApiController
     /// <summary>CSRF korumasi icin uretilen state degerinin saklandigi cerez.</summary>
     private const string StateCookieName = "streaktracker_oauth_state";
 
+    /// <summary>
+    /// JWT'nin saklandigi cerez. HttpOnly oldugu icin tarayicidaki JavaScript
+    /// tarafindan okunamaz; XSS ile token calinmasina karsi localStorage'dan daha guvenlidir.
+    /// </summary>
+    public const string AuthCookieName = "streaktracker_token";
+
     private readonly IAuthService _authService;
+    private readonly AppOptions _appOptions;
     private readonly ILogger<AuthController> _logger;
 
-    public AuthController(IAuthService authService, ILogger<AuthController> logger)
+    public AuthController(
+        IAuthService authService,
+        IOptions<AppOptions> appOptions,
+        ILogger<AuthController> logger)
     {
         _authService = authService;
+        _appOptions = appOptions.Value;
         _logger = logger;
     }
 
@@ -62,22 +75,12 @@ public class AuthController : BaseApiController
         if (!string.IsNullOrWhiteSpace(error))
         {
             _logger.LogWarning("GitHub yetkilendirmesi reddedildi: {Error} - {Description}", error, errorDescription);
-            return BadRequest(new ProblemDetails
-            {
-                Status = StatusCodes.Status400BadRequest,
-                Title = "GitHub yetkilendirmesi tamamlanmadi",
-                Detail = errorDescription ?? error
-            });
+            return RedirectToFrontend("/?error=access_denied");
         }
 
         if (string.IsNullOrWhiteSpace(code))
         {
-            return BadRequest(new ProblemDetails
-            {
-                Status = StatusCodes.Status400BadRequest,
-                Title = "Eksik parametre",
-                Detail = "GitHub'dan 'code' parametresi alinamadi."
-            });
+            return RedirectToFrontend("/?error=missing_code");
         }
 
         var expectedState = Request.Cookies[StateCookieName];
@@ -90,18 +93,51 @@ public class AuthController : BaseApiController
                 System.Text.Encoding.UTF8.GetBytes(state)))
         {
             _logger.LogWarning("OAuth state dogrulamasi basarisiz.");
-            return BadRequest(new ProblemDetails
-            {
-                Status = StatusCodes.Status400BadRequest,
-                Title = "Gecersiz oturum",
-                Detail = "Yetkilendirme dogrulamasi basarisiz oldu. Lutfen girisi bastan baslatin."
-            });
+            return RedirectToFrontend("/?error=invalid_state");
         }
 
         var result = await _authService.HandleCallbackAsync(code, cancellationToken);
 
-        return Ok(result);
+        SetAuthCookie(result.Token, result.ExpiresAt);
+
+        // Onay verilmemis kullanici once bilgilendirme/onay ekranina gider.
+        return RedirectToFrontend(result.RequiresOnboarding ? "/onboarding" : "/dashboard");
     }
+
+    /// <summary>
+    /// Oturumu kapatir: kimlik dogrulama cerezini siler.
+    /// </summary>
+    [HttpPost("logout")]
+    [AllowAnonymous]
+    public IActionResult Logout()
+    {
+        Response.Cookies.Delete(AuthCookieName, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = Request.IsHttps,
+            SameSite = SameSiteMode.Lax,
+            Path = "/"
+        });
+
+        return Ok(new { loggedOut = true });
+    }
+
+    private void SetAuthCookie(string token, DateTime expiresAt)
+    {
+        Response.Cookies.Append(AuthCookieName, token, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = Request.IsHttps,
+            // Frontend ve API ayni site (localhost) uzerinde oldugu icin Lax yeterlidir.
+            // Farkli alan adlarina tasinirsa SameSite=None + Secure gerekecektir.
+            SameSite = SameSiteMode.Lax,
+            Expires = new DateTimeOffset(expiresAt, TimeSpan.Zero),
+            Path = "/"
+        });
+    }
+
+    private RedirectResult RedirectToFrontend(string path) =>
+        Redirect($"{_appOptions.FrontendBaseUrl.TrimEnd('/')}{path}");
 
     /// <summary>
     /// Gecerli JWT ile giris yapmis kullanicinin profil ozetini dondurur.

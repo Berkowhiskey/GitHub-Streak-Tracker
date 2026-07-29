@@ -233,5 +233,6 @@ public class AuthService : IAuthService
         user.IsActive,
         user.PreferredNotificationHourUtc,
         user.PrivateNotificationRepoName,
-        user.NotificationIssueNumber);
+        user.NotificationIssueNumber,
+        user.GitHubAppInstallationId is not null);
 }

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using StreakTracker.API.Controllers;
 using StreakTracker.API.Data;
 using StreakTracker.API.Jobs;
 using StreakTracker.API.Middleware;
@@ -63,6 +64,7 @@ builder.Services.AddHangfireServer();
 builder.Services.Configure<GitHubOptions>(builder.Configuration.GetSection(GitHubOptions.SectionName));
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.Configure<AppOptions>(builder.Configuration.GetSection(AppOptions.SectionName));
+builder.Services.Configure<GitHubAppOptions>(builder.Configuration.GetSection(GitHubAppOptions.SectionName));
 
 // --- Kimlik dogrulama (JWT) ---
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
@@ -93,6 +95,22 @@ builder.Services
             ValidateLifetime = true,
             ClockSkew = TimeSpan.FromMinutes(1)
         };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                // Tarayici arayuzu token'i HttpOnly cerezde tasir (XSS'e karsi daha guvenli).
+                // Authorization basligi varsa ona dokunulmaz; Swagger ve curl calismaya devam eder.
+                if (string.IsNullOrEmpty(context.Token) &&
+                    context.Request.Cookies.TryGetValue(AuthController.AuthCookieName, out var cookieToken))
+                {
+                    context.Token = cookieToken;
+                }
+
+                return Task.CompletedTask;
+            }
+        };
     });
 
 builder.Services.AddAuthorization();
@@ -110,6 +128,7 @@ builder.Services.AddHttpClient(nameof(AuthService), client =>
 });
 
 builder.Services.AddScoped<IGitHubService, GitHubService>();
+builder.Services.AddScoped<IGitHubAppService, GitHubAppService>();
 builder.Services.AddScoped<IStreakService, StreakService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IOnboardingService, OnboardingService>();

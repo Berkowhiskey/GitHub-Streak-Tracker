@@ -28,7 +28,17 @@ public record CurrentUserDto(
     bool IsActive,
     int PreferredNotificationHourUtc,
     string? NotificationRepoName,
-    int? NotificationIssueNumber);
+    int? NotificationIssueNumber,
+    /// <summary>
+    /// GitHub App kurulu mu? Kurulu degilse bildirimler gonderilemez,
+    /// cunku yorumun bot kimligiyle atilmasi gerekir.
+    /// </summary>
+    bool GitHubAppInstalled);
+
+/// <summary>
+/// GitHub App kurulum durumu ve kurulum adresi.
+/// </summary>
+public record AppInstallationStatusDto(bool Installed, string InstallationUrl, bool AppConfigured);
 
 /// <summary>
 /// Onboarding (KVKK onayi + gizli repo kurulumu) istegi.

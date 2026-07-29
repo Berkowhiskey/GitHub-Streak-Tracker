@@ -16,19 +16,62 @@ public class UsersController : BaseApiController
 {
     private readonly AppDbContext _dbContext;
     private readonly IAuthService _authService;
+    private readonly IGitHubAppService _gitHubAppService;
     private readonly AppOptions _appOptions;
     private readonly ILogger<UsersController> _logger;
 
     public UsersController(
         AppDbContext dbContext,
         IAuthService authService,
+        IGitHubAppService gitHubAppService,
         IOptions<AppOptions> appOptions,
         ILogger<UsersController> logger)
     {
         _dbContext = dbContext;
         _authService = authService;
+        _gitHubAppService = gitHubAppService;
         _appOptions = appOptions.Value;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// GitHub App kurulum durumunu GitHub'a sorarak dogrular ve veritabanini gunceller.
+    /// Kullanici App'i kurduktan sonra "kontrol et" akisinda cagrilir.
+    /// </summary>
+    [HttpGet("me/app-status")]
+    public async Task<ActionResult<AppInstallationStatusDto>> AppStatus(CancellationToken cancellationToken)
+    {
+        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == CurrentUserId, cancellationToken);
+
+        if (user is null)
+            return NotFound();
+
+        if (!_gitHubAppService.IsConfigured)
+        {
+            return Ok(new AppInstallationStatusDto(
+                Installed: false,
+                InstallationUrl: _gitHubAppService.InstallationUrl,
+                AppConfigured: false));
+        }
+
+        var installationId = await _gitHubAppService.GetInstallationIdAsync(
+            user.GitHubUsername, cancellationToken);
+
+        // Kurulum kaldirilmis olabilir; veritabanindaki degeri her kontrolde tazeleriz.
+        if (user.GitHubAppInstallationId != installationId)
+        {
+            user.GitHubAppInstallationId = installationId;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInformation(
+                "GitHub App kurulum durumu guncellendi. Kullanici: {Username}, Kurulum: {InstallationId}",
+                user.GitHubUsername, installationId);
+        }
+
+        return Ok(new AppInstallationStatusDto(
+            Installed: installationId is not null,
+            InstallationUrl: _gitHubAppService.InstallationUrl,
+            AppConfigured: true));
     }
 
     /// <summary>
