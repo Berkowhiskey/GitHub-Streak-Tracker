@@ -1,0 +1,48 @@
+# ---------- .NET ----------
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+artifacts/
+
+# ---------- Node / Next.js ----------
+node_modules/
+.next/
+out/
+build/
+.pnp
+.pnp.js
+*.tsbuildinfo
+next-env.d.ts
+
+# ---------- Ortam degiskenleri & sirlar ----------
+# GitHub OAuth ClientSecret, JWT key, DB sifresi buralarda tutulur; asla commit'lenmez.
+.env
+.env.*
+!.env.example
+appsettings.Development.json
+appsettings.Local.json
+appsettings.Production.json
+secrets.json
+
+# ---------- Loglar ----------
+*.log
+logs/
+npm-debug.log*
+yarn-error.log*
+
+# ---------- IDE / OS ----------
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+
+# ---------- Docker volume verileri ----------
+.postgres-data/
+
+# ---------- Gecici rozet onizlemeleri ----------
+rozet-onizleme-*.svg

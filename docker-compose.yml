@@ -1,0 +1,25 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: streaktracker-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: streaktracker
+      POSTGRES_USER: streaktracker
+      POSTGRES_PASSWORD: streaktracker_dev_2026
+      # Turkce karakterlerin dogru siralanmasi icin
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    ports:
+      # 5432 ve 5433 baska projelerin container'lari tarafindan kullanildigi icin 5434 secildi.
+      - "5434:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U streaktracker -d streaktracker"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:
+    name: streaktracker-postgres-data
