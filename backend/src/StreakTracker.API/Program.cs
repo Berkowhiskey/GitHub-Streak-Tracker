@@ -4,6 +4,7 @@ using Hangfire.Dashboard;
 using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
@@ -30,12 +31,30 @@ if (string.IsNullOrWhiteSpace(connectionString))
         "(ornek: appsettings.Development.example.json).");
 }
 
+// "App" bolumu asagida hem DataProtection hem de cerez politikasi icin gerekli.
+var appOptions = builder.Configuration.GetSection(AppOptions.SectionName).Get<AppOptions>() ?? new AppOptions();
+
+// SameSite=None yalnizca Secure cerezlerle calisir; yanlis yapilandirma sessizce
+// "giris calismiyor" olarak tezahur eder. Bu yuzden acilista dogruluyoruz.
+var cookieSameSite = appOptions.ResolveCookieSameSite();
+
+if (cookieSameSite == SameSiteMode.None && builder.Environment.IsDevelopment())
+{
+    throw new InvalidOperationException(
+        "App:CookieSameSite=None yalnizca HTTPS uzerinden calisir ve gelistirme ortami HTTP kullanir. " +
+        "Gelistirmede 'Lax' kullanin.");
+}
+
 // ---------------------------------------------------------------------------
 // Servisler (DI)
 // ---------------------------------------------------------------------------
 // Access token sifrelemesi icin kullanilan anahtarlar diske kalici olarak yazilir.
 // Anahtarlar kaybolursa kayitli token'lar cozulemez ve kullanicilar yeniden giris yapmak zorunda kalir.
-var dataProtectionKeysPath = Path.Combine(builder.Environment.ContentRootPath, ".dataprotection-keys");
+// Container ortaminda bu yol kalici bir volume'e baglanmalidir (App:DataProtectionKeysPath).
+var dataProtectionKeysPath = string.IsNullOrWhiteSpace(appOptions.DataProtectionKeysPath)
+    ? Path.Combine(builder.Environment.ContentRootPath, ".dataprotection-keys")
+    : appOptions.DataProtectionKeysPath;
+
 Directory.CreateDirectory(dataProtectionKeysPath);
 
 builder.Services.AddDataProtection()
@@ -189,25 +208,35 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Reverse proxy (Caddy/nginx) arkasinda calisirken istegin gercekte HTTPS uzerinden
+// geldigini yalnizca X-Forwarded-Proto basligi soyler. Bu middleware olmadan
+// Request.IsHttps false doner; cerez Secure isaretlenmez ve tarayici SameSite=None
+// cerezini reddeder - yani giris hic calismaz. Pipeline'in EN BASINDA olmalidir.
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+    // Docker aginda proxy'nin IP'si onceden bilinemez; varsayilan kisitlar
+    // temizlenmezse basliklar sessizce yok sayilir.
+    KnownNetworks = { },
+    KnownProxies = { }
+});
+
 app.UseExceptionHandler();
 
 // ---------------------------------------------------------------------------
-// Gelistirme ortaminda bekleyen migration'lari otomatik uygula
+// Veritabani hazirligi
 // ---------------------------------------------------------------------------
-if (app.Environment.IsDevelopment())
+// Gelistirmede her zaman, production'da yalnizca App:RunMigrationsOnStartup=true ise.
+if (app.Environment.IsDevelopment() || appOptions.RunMigrationsOnStartup)
 {
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await db.Database.MigrateAsync();
-}
-
-// Sifreleme devreye alinmadan once kaydedilmis duz metin token'lari sifrele (bir kerelik gecis).
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     var protector = scope.ServiceProvider.GetRequiredService<ITokenProtector>();
-    var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("TokenEncryptionBackfill");
+    var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
 
+    await db.Database.MigrateAsync();
+
+    // Backfill semaya bagimlidir; migration ile ayni blokta ve ondan SONRA calismalidir.
     await TokenEncryptionBackfill.RunAsync(db, protector, logger);
 }
 

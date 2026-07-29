@@ -10,6 +10,19 @@ namespace StreakTracker.API.Data;
 /// </summary>
 public static class TokenEncryptionBackfill
 {
+    /// <summary>
+    /// GitHub access token'larinin bilinen onekleri.
+    /// <para>
+    /// Bir degerin cozulememesi tek basina "duz metin" anlamina GELMEZ; deger
+    /// baska bir DataProtection anahtariyla sifrelenmis de olabilir (orn. anahtar
+    /// klasoru degistiginde). Boyle bir degeri yeniden sifrelemek veriyi geri
+    /// donulmez sekilde bozar. Bu yuzden yalnizca gercekten GitHub token'i
+    /// gorunumundeki degerler sifrelenir.
+    /// </para>
+    /// </summary>
+    private static readonly string[] GitHubTokenPrefixes =
+        ["gho_", "ghp_", "ghu_", "ghs_", "ghr_", "github_pat_"];
+
     public static async Task RunAsync(
         AppDbContext dbContext,
         ITokenProtector tokenProtector,
@@ -38,8 +51,25 @@ public static class TokenEncryptionBackfill
                 var id = reader.GetGuid(0);
                 var storedToken = reader.GetString(1);
 
-                if (!tokenProtector.IsProtected(storedToken))
+                if (tokenProtector.IsProtected(storedToken))
+                    continue;
+
+                if (LooksLikePlainGitHubToken(storedToken))
+                {
                     plainTextUserIds.Add(id);
+                }
+                else
+                {
+                    // Cozulemiyor ama duz metin GitHub token'ina da benzemiyor:
+                    // buyuk olasilikla BASKA bir DataProtection anahtariyla sifrelenmis.
+                    // Yeniden sifrelemek degeri kurtarilamaz hale getirir - dokunmuyoruz.
+                    logger.LogError(
+                        "Kullanici {UserId} icin access token cozulemedi ve duz metin GitHub token'ina benzemiyor. " +
+                        "Deger baska bir DataProtection anahtariyla sifrelenmis olabilir; bozmamak icin dokunulmadi. " +
+                        "Anahtar klasoru (App:DataProtectionKeysPath) dogru mu kontrol edin. " +
+                        "Anahtarlar gercekten kaybolduysa kullanicinin yeniden giris yapmasi gerekir.",
+                        id);
+                }
             }
         }
         finally
@@ -72,4 +102,10 @@ public static class TokenEncryptionBackfill
             "{Count} adet duz metin access token sifrelendi (bir kerelik gecis islemi).",
             users.Count);
     }
+
+    /// <summary>
+    /// Degerin sifrelenmemis bir GitHub access token'i olup olmadigini bildirir.
+    /// </summary>
+    private static bool LooksLikePlainGitHubToken(string value) =>
+        GitHubTokenPrefixes.Any(prefix => value.StartsWith(prefix, StringComparison.Ordinal));
 }

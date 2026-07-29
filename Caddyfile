@@ -1,0 +1,31 @@
+# ---------------------------------------------------------------------------
+# Caddy - reverse proxy + otomatik HTTPS
+#
+# Caddy, Let's Encrypt sertifikasini kendiliginden alir ve suresi dolmadan
+# yeniler. nginx + certbot kombinasyonundaki webroot/cron ayarlarina gerek yoktur.
+#
+# API_DOMAIN degiskeni .env dosyasindan gelir.
+# ---------------------------------------------------------------------------
+
+{$API_DOMAIN} {
+	# Uygulama container'i ayni Docker aginda "api" adiyla erisilebilir.
+	reverse_proxy api:8080
+
+	# Guvenlik basliklari
+	header {
+		# Tarayiciyi bir yil boyunca yalnizca HTTPS kullanmaya zorlar.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Sunucu bilgisini sizdirmayalim.
+		-Server
+	}
+
+	encode gzip zstd
+
+	log {
+		output stdout
+		format console
+	}
+}

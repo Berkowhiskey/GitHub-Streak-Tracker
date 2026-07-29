@@ -111,29 +111,43 @@ public class AuthController : BaseApiController
     [AllowAnonymous]
     public IActionResult Logout()
     {
-        Response.Cookies.Delete(AuthCookieName, new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = Request.IsHttps,
-            SameSite = SameSiteMode.Lax,
-            Path = "/"
-        });
+        Response.Cookies.Delete(AuthCookieName, BuildAuthCookieOptions());
 
         return Ok(new { loggedOut = true });
     }
 
     private void SetAuthCookie(string token, DateTime expiresAt)
     {
-        Response.Cookies.Append(AuthCookieName, token, new CookieOptions
+        Response.Cookies.Append(AuthCookieName, token, BuildAuthCookieOptions(options =>
+            options.Expires = new DateTimeOffset(expiresAt, TimeSpan.Zero)));
+    }
+
+    /// <summary>
+    /// Kimlik dogrulama cerezinin ayarlarini uretir.
+    /// <para>
+    /// SameSite politikasi yapilandirmadan gelir: frontend ile API ayni site altindaysa
+    /// <c>Lax</c>, farkli alan adlarindaysa <c>None</c> gerekir. <c>None</c> secildiginde
+    /// tarayicilar cerezi yalnizca Secure ise kabul eder.
+    /// </para>
+    /// Cerezin silinmesi ile olusturulmasi <b>ayni</b> ayarlari kullanmalidir;
+    /// aksi halde tarayici silme istegini eslestiremez ve oturum kapanmaz.
+    /// </summary>
+    private CookieOptions BuildAuthCookieOptions(Action<CookieOptions>? customize = null)
+    {
+        var sameSite = _appOptions.ResolveCookieSameSite();
+
+        var options = new CookieOptions
         {
             HttpOnly = true,
-            Secure = Request.IsHttps,
-            // Frontend ve API ayni site (localhost) uzerinde oldugu icin Lax yeterlidir.
-            // Farkli alan adlarina tasinirsa SameSite=None + Secure gerekecektir.
-            SameSite = SameSiteMode.Lax,
-            Expires = new DateTimeOffset(expiresAt, TimeSpan.Zero),
+            // SameSite=None, Secure olmadan gecersizdir.
+            Secure = Request.IsHttps || sameSite == SameSiteMode.None,
+            SameSite = sameSite,
             Path = "/"
-        });
+        };
+
+        customize?.Invoke(options);
+
+        return options;
     }
 
     private RedirectResult RedirectToFrontend(string path) =>

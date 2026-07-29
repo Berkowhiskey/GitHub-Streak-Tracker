@@ -54,3 +54,9 @@ rozet-onizleme-*.svg
 # ---------- GitHub App private key ----------
 # App'in imzalama anahtari; sizarsa bot kimligiyle islem yapilabilir.
 *.pem
+
+# ---------- Production sirlari ----------
+# secrets/ altinda GitHub App private key'i ve benzeri dosyalar durur.
+secrets/
+# Caddy'nin urettigi SSL sertifikalari ve ACME hesap anahtarlari
+caddy-data/

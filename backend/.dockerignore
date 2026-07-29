@@ -1,0 +1,18 @@
+# Windows'ta uretilen build ciktilarinin imaja sizmasi, Linux icindeki
+# restore/publish adimini bozar (ResolvePackageAssets hatasi).
+**/bin/
+**/obj/
+
+# Testler production imajinda gerekmez.
+tests/
+
+# Sirlar imaja girmemeli; calisma zamaninda volume ile baglanir.
+secrets/
+**/*.pem
+**/appsettings.Development.json
+**/appsettings.Local.json
+
+# IDE / VCS
+.vs/
+.idea/
+**/*.user

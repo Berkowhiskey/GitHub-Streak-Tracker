@@ -1,0 +1,106 @@
+# ---------------------------------------------------------------------------
+# StreakTracker - production yigini (Oracle Cloud / herhangi bir Linux sunucu)
+#
+# Kullanim:
+#   cp .env.example .env      &&  degerleri doldur  &&  chmod 600 .env
+#   mkdir -p secrets          &&  GitHub App .pem dosyasini icine koy
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Yalnizca Caddy disariya acilir (80/443). API ve veritabani ic aga kapalidir.
+# ---------------------------------------------------------------------------
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: streaktracker-postgres-prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    # Port disari acilmaz; veritabanina yalnizca Docker agindan erisilir.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - streaktracker
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: streaktracker-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+
+      # ASP.NET Core yapilandirmasinda ic ice bolumler "__" ile ifade edilir.
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+
+      App__PublicBaseUrl: ${APP_PUBLIC_BASE_URL}
+      App__FrontendBaseUrl: ${APP_FRONTEND_BASE_URL}
+      App__CookieSameSite: ${APP_COOKIE_SAMESITE:-Lax}
+      # Anahtarlar kalici volume'de tutulur; container yeniden olusturulsa bile
+      # kayitli access token'lar cozulmeye devam eder.
+      App__DataProtectionKeysPath: /keys
+      App__RunMigrationsOnStartup: "true"
+
+      Cors__AllowedOrigins__0: ${CORS_ALLOWED_ORIGIN}
+
+      Jwt__Key: ${JWT_KEY}
+
+      GitHub__ClientId: ${GITHUB_CLIENT_ID}
+      GitHub__ClientSecret: ${GITHUB_CLIENT_SECRET}
+      GitHub__CallbackUrl: "${APP_PUBLIC_BASE_URL}/api/v1/auth/github/callback"
+
+      GitHubApp__AppId: ${GITHUB_APP_ID}
+      GitHubApp__Slug: ${GITHUB_APP_SLUG}
+      GitHubApp__PrivateKeyPath: /secrets/${GITHUB_APP_PRIVATE_KEY_FILE}
+    volumes:
+      - dataprotection-keys:/keys
+      # GitHub App imzalama anahtari - salt okunur baglanir.
+      - ./secrets:/secrets:ro
+    networks:
+      - streaktracker
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: streaktracker-caddy
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      API_DOMAIN: ${API_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Alinan sertifikalar kalici olmali; aksi halde her yeniden baslatmada
+      # yeniden sertifika istenir ve Let's Encrypt limitine takilir.
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - streaktracker
+
+volumes:
+  postgres-data:
+    name: streaktracker-postgres-data-prod
+  dataprotection-keys:
+    name: streaktracker-dataprotection-keys
+  caddy-data:
+    name: streaktracker-caddy-data
+  caddy-config:
+    name: streaktracker-caddy-config
+
+networks:
+  streaktracker:
+    name: streaktracker-network

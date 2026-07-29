@@ -319,3 +319,32 @@ Geliştiricilerin GitHub üzerindeki "streak" (kesintisiz günlük kod yazma ser
   * Ayrıca **arayüzden** (dashboard → "Test gönder") gönderilen bildirim de başarıyla düştü; frontend → backend → GitHub App → GitHub Mobile zinciri uçtan uca çalışıyor.
   * **Sonuç:** GitHub App'e geçiş kararı doğruydu. Kullanıcının kendi kimliğiyle atılan yorum bildirim üretmiyordu; bot kimliğiyle atılan yorum üretiyor. Faz 7 kapandı ✅
 
+---
+
+#### 🔹 FAZ 8 — Deploy Öncesi Kritik Hazırlıklar (Aşama 0)
+
+> **Hedef altyapı:** Backend + PostgreSQL → **Oracle Cloud Always Free** (ARM, süresiz $0) · Frontend → **Vercel** ($0) · Reverse proxy + SSL → **Caddy** (otomatik sertifika). Öğrenci bütçesi gözetilerek toplam **aylık $0** hedeflendi. Aşama 0'ın tamamı platformdan bağımsızdır; Oracle hesabı açılmasa bile geçerlidir.
+
+* **29 Temmuz 2026, 13:50** - **[0.1]** DataProtection anahtar klasörü yapılandırılabilir yapıldı (`App:DataProtectionKeysPath`). Container'da kalıcı volume'e (`/keys`) bağlanacak.
+  * **Neden DB değil:** `AppDbContext` zaten `ITokenProtector`'a, o da `IDataProtectionProvider`'a bağımlı. Anahtar deposunu aynı DbContext'e bağlamak **döngüsel bağımlılık** riski taşıyor. Tek sunucuda volume hem basit hem güvenli.
+* **29 Temmuz 2026, 13:55** - **[0.2]** `UseForwardedHeaders` pipeline'ın en başına eklendi (`KnownNetworks`/`KnownProxies` temizlenerek).
+  * **Kritik gerekçe:** Caddy arkasında uygulama HTTP konuşur; bu middleware olmadan `Request.IsHttps` **false** döner → çerez `Secure` işaretlenmez → tarayıcı `SameSite=None` çerezini reddeder → **giriş hiç çalışmaz.** Sessizce başarısız olan türden bir hata.
+* **29 Temmuz 2026, 14:00** - **[0.3]** Çerez politikası yapılandırılabilir hale getirildi (`App:CookieSameSite`). `SetAuthCookie` ve `Logout` artık **aynı** ayarları üreten `BuildAuthCookieOptions` üzerinden çalışıyor — farklı ayarlarla silinen çerez tarayıcıda eşleşmez ve oturum kapanmazdı. Development'ta `None` seçilirse uygulama anlamlı hatayla başlamayı reddediyor.
+* **29 Temmuz 2026, 14:05** - **[0.4]** `App:RunMigrationsOnStartup` eklendi; `TokenEncryptionBackfill` migration ile **aynı bloğa** ve ondan sonraya alındı (şemaya bağımlı olduğu için).
+* **29 Temmuz 2026, 14:10** - **[0.5]** `docker-compose.yml` şifresi `${POSTGRES_PASSWORD}` ile env'e taşındı. `.env.example` şablonu yazıldı; `.gitignore`'a `secrets/` ve `caddy-data/` eklendi.
+* **29 Temmuz 2026, 14:15** - **[0.6]** `backend/Dockerfile` (multi-stage, **root olmayan kullanıcı**), `backend/.dockerignore`, `docker-compose.prod.yml` (api + postgres + caddy, adlandırılmış volume'ler) ve `Caddyfile` (otomatik Let's Encrypt + güvenlik başlıkları) yazıldı.
+  * **Çözülen Hata:** İlk Docker build'i `MSB4018 / ResolvePackageAssets` ile patladı — Windows'ta üretilen `bin/`+`obj/` klasörleri imaja kopyalanıp Linux restore'unu bozuyordu. `.dockerignore` ile çözüldü.
+  * **Neden Caddy:** nginx+certbot sertifika yenileme, webroot ve cron ayarı ister; Caddy sertifikayı kendiliğinden alıp yeniler. VPS bakım yükünü belirgin azaltır.
+* **29 Temmuz 2026, 14:25** - 🐞 **CİDDİ HATA BULUNDU VE DÜZELTİLDİ — `TokenEncryptionBackfill` veri bozuyordu.**
+  * **Nasıl ortaya çıktı:** Production imajı, host'taki geliştirme veritabanına bağlanarak test edildi. Container'ın kendi (boş) anahtar volume'ü vardı; host anahtarıyla şifrelenmiş token'ı çözemedi.
+  * **Kusur:** Backfill "çözülemiyorsa **düz metindir**" varsayıyordu. Oysa değer **başka bir DataProtection anahtarıyla şifrelenmiş** de olabilir. Sonuç: token'ın üzerine ikinci kez şifreleme uygulandı (176 → **368 karakter**) ve **geri dönülmez şekilde bozuldu**.
+  * **Etki:** Bu kusur production'da da tetiklenebilirdi — anahtar klasörü yanlış bağlanırsa tüm kullanıcıların token'ları bozulurdu.
+  * **Düzeltme:** Artık yalnızca bilinen GitHub token öneklerine (`gho_`, `ghp_`, `ghu_`, `ghs_`, `ghr_`, `github_pat_`) sahip değerler düz metin kabul ediliyor. Çözülemeyen ama bu öneklere sahip olmayan değerlere **dokunulmuyor**; bunun yerine yapılandırma kontrolünü isteyen açık bir `LogError` yazılıyor.
+  * **Doğrulama:** Aynı senaryo yeni kodla tekrarlandı → token uzunluğu **368'de kaldı (değişmedi)**, beklenen hata mesajı loglandı ✅
+  * ⚠️ **Yan etki:** Kullanıcının mevcut access token'ı bu testte bozuldu; yeniden giriş yapması gerekiyor (veri kaybı yok, yalnızca oturum).
+* **29 Temmuz 2026, 14:30** - **AŞAMA 0 TAMAMLANDI ✅**
+  * `dotnet build` → **0 warning / 0 error**, `dotnet test` → **29/29 passed**
+  * `docker build` → imaj başarıyla üretildi
+  * Production modunda container: `/health` → **200 healthy**, `/swagger` → **404** (production'da kapalı ✓), rozet endpoint'i → **200**, migration otomatik uygulandı, DataProtection anahtarı `/keys` volume'üne yazıldı ✓
+  * `docker-compose.prod.yml` → sözdizimi ve tüm değişkenler doğrulandı (3 servis, 4 volume)
+
