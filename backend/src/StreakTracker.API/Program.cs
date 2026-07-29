@@ -1,7 +1,9 @@
 using System.Text;
 using Hangfire;
+using Hangfire.Dashboard;
 using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
@@ -30,6 +32,17 @@ if (string.IsNullOrWhiteSpace(connectionString))
 // ---------------------------------------------------------------------------
 // Servisler (DI)
 // ---------------------------------------------------------------------------
+// Access token sifrelemesi icin kullanilan anahtarlar diske kalici olarak yazilir.
+// Anahtarlar kaybolursa kayitli token'lar cozulemez ve kullanicilar yeniden giris yapmak zorunda kalir.
+var dataProtectionKeysPath = Path.Combine(builder.Environment.ContentRootPath, ".dataprotection-keys");
+Directory.CreateDirectory(dataProtectionKeysPath);
+
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath))
+    .SetApplicationName("StreakTracker");
+
+builder.Services.AddSingleton<ITokenProtector, TokenProtector>();
+
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString, npgsql =>
     {
@@ -49,6 +62,7 @@ builder.Services.AddHangfireServer();
 // --- Yapilandirma bolumleri ---
 builder.Services.Configure<GitHubOptions>(builder.Configuration.GetSection(GitHubOptions.SectionName));
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+builder.Services.Configure<AppOptions>(builder.Configuration.GetSection(AppOptions.SectionName));
 
 // --- Kimlik dogrulama (JWT) ---
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
@@ -168,6 +182,16 @@ if (app.Environment.IsDevelopment())
     await db.Database.MigrateAsync();
 }
 
+// Sifreleme devreye alinmadan once kaydedilmis duz metin token'lari sifrele (bir kerelik gecis).
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var protector = scope.ServiceProvider.GetRequiredService<ITokenProtector>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("TokenEncryptionBackfill");
+
+    await TokenEncryptionBackfill.RunAsync(db, protector, logger);
+}
+
 // ---------------------------------------------------------------------------
 // HTTP pipeline
 // ---------------------------------------------------------------------------
@@ -179,12 +203,20 @@ if (app.Environment.IsDevelopment())
         options.SwaggerEndpoint("/swagger/v1/swagger.json", "StreakTracker API v1");
     });
 
-    // TODO (Faz 5): Production'da dashboard mutlaka yetkilendirme filtresi arkasina alinmali.
-    app.UseHangfireDashboard("/hangfire");
+    app.UseHangfireDashboard("/hangfire", new DashboardOptions
+    {
+        Authorization = [new HangfireDashboardAuthorizationFilter(allowAllInDevelopment: true)]
+    });
 }
 else
 {
     app.UseHttpsRedirection();
+
+    // Production'da dashboard yalnizca sunucunun kendisinden erisilebilir.
+    app.UseHangfireDashboard("/hangfire", new DashboardOptions
+    {
+        Authorization = [new HangfireDashboardAuthorizationFilter(allowAllInDevelopment: false)]
+    });
 }
 
 app.UseCors("FrontendPolicy");

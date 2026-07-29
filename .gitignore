@@ -46,3 +46,7 @@ Thumbs.db
 
 # ---------- Gecici rozet onizlemeleri ----------
 rozet-onizleme-*.svg
+
+# ---------- DataProtection anahtarlari (token sifreleme) ----------
+# Bu anahtarlar sirdir; sizmasi halinde kayitli access token'lar cozulebilir.
+.dataprotection-keys/

@@ -1,6 +1,9 @@
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
+using StreakTracker.API.Services;
 
 namespace StreakTracker.API.Data;
 
@@ -32,6 +35,12 @@ public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<AppDbConte
             .UseNpgsql(connectionString)
             .Options;
 
-        return new AppDbContext(options);
+        // Migration uretimi sirasinda veri okunup yazilmaz; yine de DbContext'in
+        // zorunlu bagimliligini karsilamak icin gecici bir koruyucu olusturulur.
+        var tokenProtector = new TokenProtector(
+            DataProtectionProvider.Create(nameof(StreakTracker)),
+            NullLogger<TokenProtector>.Instance);
+
+        return new AppDbContext(options, tokenProtector);
     }
 }

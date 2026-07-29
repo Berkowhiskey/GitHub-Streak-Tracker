@@ -25,9 +25,10 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.AvatarUrl)
             .HasMaxLength(500);
 
+        // Sifrelenmis token, duz metinden belirgin olcude uzundur (DataProtection zarfi + base64).
         builder.Property(u => u.AccessToken)
             .IsRequired()
-            .HasMaxLength(500);
+            .HasMaxLength(1000);
 
         builder.Property(u => u.PrivateNotificationRepoName)
             .HasMaxLength(100);

@@ -1,12 +1,17 @@
 using Microsoft.EntityFrameworkCore;
 using StreakTracker.API.Entities;
+using StreakTracker.API.Services.Interfaces;
 
 namespace StreakTracker.API.Data;
 
 public class AppDbContext : DbContext
 {
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
+    private readonly ITokenProtector _tokenProtector;
+
+    public AppDbContext(DbContextOptions<AppDbContext> options, ITokenProtector tokenProtector)
+        : base(options)
     {
+        _tokenProtector = tokenProtector;
     }
 
     public DbSet<User> Users => Set<User>();
@@ -19,6 +24,14 @@ public class AppDbContext : DbContext
 
         // Data/Configurations altindaki tum IEntityTypeConfiguration siniflarini otomatik uygular.
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+
+        // GitHub access token'i veritabanina her zaman sifreli yazilir, okurken cozulur.
+        // Donusum model seviyesinde tanimlandigi icin hicbir serviste atlanamaz.
+        modelBuilder.Entity<User>()
+            .Property(u => u.AccessToken)
+            .HasConversion(
+                plain => _tokenProtector.Protect(plain),
+                stored => _tokenProtector.Unprotect(stored));
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

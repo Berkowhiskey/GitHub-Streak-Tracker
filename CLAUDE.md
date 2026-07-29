@@ -233,3 +233,29 @@ Geliştiricilerin GitHub üzerindeki "streak" (kesintisiz günlük kod yazma ser
   * Kayıtsız kullanıcı → **200** + bilgilendirici rozet + `no-cache` ✅
   * ⏳ **Bekleyen:** Rozet şu an yalnızca `localhost` üzerinden erişilebilir; profil README'sine eklenebilmesi için canlı bir adrese deploy gerekiyor.
 
+---
+
+#### 🔹 FAZ 5.2 — Güvenlik Borçlarının Kapatılması + Kullanıcı/Streak Endpoint'leri
+
+* **29 Temmuz 2026, 08:55** - Kullanıcı Faz 1-4'ü commit'leyip `github.com/Berkowhiskey/GitHub-Streak-Tracker` reposuna push etti. Push sonrası güvenlik denetimi: push edilen commit içeriğinde gerçek `ClientId`/`ClientSecret` **yok**, `appsettings.Development.json` takip edilmiyor ✅
+* **29 Temmuz 2026, 09:02** - 🔐 **AÇIK RİSK KAPATILDI — Access token şifrelemesi.** `Services/TokenProtector.cs` (ASP.NET DataProtection) yazıldı ve `AppDbContext`'te **EF value converter** olarak bağlandı.
+  * **Neden value converter:** Şifreleme model seviyesinde tanımlandığı için hiçbir serviste unutulamaz; token DB'ye her zaman şifreli yazılır, okunurken çözülür.
+  * `AccessToken` kolonu 500 → **1000** karaktere çıkarıldı (DataProtection zarfı + base64 uzunluğu). `EncryptAccessToken` migration'ı uygulandı.
+  * DataProtection anahtarları `.dataprotection-keys/` klasörüne kalıcı yazılıyor ve `.gitignore`'a eklendi — **anahtarlar sırdır**, sızarsa kayıtlı token'lar çözülebilir.
+  * `DesignTimeDbContextFactory` geçici bir koruyucu üretecek şekilde güncellendi; böylece migration üretimi bozulmadı.
+* **29 Temmuz 2026, 09:14** - **Yarım kalan işin tamamlanması:** Şifreleme altyapısı kurulmuştu ama veritabanındaki mevcut token hâlâ **düz metindi** (`gho_`, 40 karakter) — yalnızca fallback sayesinde çalışıyordu. `Data/TokenEncryptionBackfill.cs` yazıldı: uygulama açılışında ham SQL ile şifrelenmemiş token'ları tespit edip yeniden yazar. İdempotenttir.
+  * **Doğrulama:** Backfill logu `1 adet duz metin access token sifrelendi`. DB'de token artık **176 karakter, `CfDJ` önekli** (DataProtection formatı). Şifrelemeden **sonra** `POST /streaks/me/refresh` → **200** — yani çözme de sorunsuz çalışıyor.
+* **29 Temmuz 2026, 09:06** - 🔐 **AÇIK RİSK KAPATILDI — Hangfire dashboard.** `Middleware/HangfireDashboardAuthorizationFilter.cs` eklendi. Development'ta serbest, Production'da yalnızca loopback/sunucu IP'sinden erişilebilir. Dashboard artık Production'da da kayıtlı ama filtre arkasında.
+* **29 Temmuz 2026, 09:10** - **[Adım 5.2]** `Controllers/UsersController.cs` yazıldı:
+  * `GET /api/v1/users/me` — profil özeti.
+  * `PATCH /api/v1/users/me/preferences` — bildirim saati (0-23 doğrulamalı) ve bildirimlerin açık/kapalı durumu.
+  * `GET /api/v1/users/me/badge` — README'ye yapıştırılacak hazır **Markdown ve HTML** rozet kodları (`App:PublicBaseUrl` üzerinden üretilir).
+  * `DELETE /api/v1/users/me` — **KVKK silme hakkı.** Kullanıcı ve tüm verileri (streak + bildirim logları, cascade) silinir. GitHub'daki gizli repo **silinmez**; ona yalnızca kullanıcı karar verebilir, yanıtta bu açıkça bildirilir.
+* **29 Temmuz 2026, 09:12** - **[Adım 5.2]** `Controllers/StreaksController.cs` yazıldı: `GET /streaks/me` (DB'den, hızlı), `POST /streaks/me/refresh` (GitHub'dan tazeler), `GET /streaks/me/calendar?days=364` (Faz 6 heatmap'i için günlük katkı verisi).
+* **29 Temmuz 2026, 09:20** - **FAZ 5.2 TAMAMLANDI ✅ — CANLI DOĞRULANDI**
+  * Build **0 warning / 0 error**, test **29/29 passed**.
+  * `GET /users/me` → 200 · `GET /users/me/badge` → 200 (Markdown + HTML kodları) · `GET /streaks/me` → 200 · `POST /streaks/me/refresh` → 200 · `GET /streaks/me/calendar?days=7` → 200 (8 günlük gerçek katkı verisi) · `PATCH /users/me/preferences` → 200 · geçersiz saat (99) → **400**.
+  * **Streak gerçek veriyle güncellendi:** Kullanıcının commit/push'u sonrası `CurrentStreak=1 → 2`, `LastCommitDate=2026-07-29`.
+  * **Test yan etkisi temizlendi:** Test sırasında 21'e alınan bildirim saati 20'ye geri alındı.
+  * ⚠️ **Kalan not:** `docker-compose.yml` içindeki geliştirme veritabanı şifresi hâlâ açık metin. Canlıya çıkarken environment variable'a taşınmalı.
+
