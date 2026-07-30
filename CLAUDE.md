@@ -348,3 +348,72 @@ Geliştiricilerin GitHub üzerindeki "streak" (kesintisiz günlük kod yazma ser
   * Production modunda container: `/health` → **200 healthy**, `/swagger` → **404** (production'da kapalı ✓), rozet endpoint'i → **200**, migration otomatik uygulandı, DataProtection anahtarı `/keys` volume'üne yazıldı ✓
   * `docker-compose.prod.yml` → sözdizimi ve tüm değişkenler doğrulandı (3 servis, 4 volume)
 
+---
+
+#### 🔹 FAZ 8 — YAYINA ALMA (Aşama 1-3) 🚀
+
+> **Nihai altyapı:** Backend → **Oracle Cloud Always Free** (AMD `E2.1.Micro`, Ubuntu 24.04) · Veritabanı → **Supabase** · Frontend → **Vercel** · SSL/proxy → **Caddy** · Alan adı → **streak-tracker.me** (Namecheap, GitHub Student Pack). **Toplam maliyet: aylık $0.**
+
+* **30 Temmuz 2026, 09:40** - **Oracle Cloud hesabı açıldı** (Home region: Zurich).
+  * ⚠️ **Asistan kaynaklı yanlış öneri:** Kapasite bulma şansı yüksek olur diye Zurich önerilmişti. Gerçek tersi çıktı: küçük bölgelerin ARM havuzu küçük **ve tek availability domain** veriyorlar. Frankfurt/Amsterdam'da 3 AD olsaydı deneme şansı üçe çıkardı. Home region sonradan değiştirilemediği için bu geri alınamadı.
+  * `VM.Standard.A1.Flex` (ARM) → **"Out of capacity"**. Alternatif AD yok (tek AD).
+* **30 Temmuz 2026, 09:55** - **Çözüm: AMD `VM.Standard.E2.1.Micro`.** Araştırmayla doğrulandı: bu shape de Always Free ve ARM'in aksine neredeyse her zaman müsait. Karşılığı: 1 OCPU / **1 GB RAM** (ARM'de 12 GB olacaktı).
+* **30 Temmuz 2026, 10:05** - **Kullanıcının Supabase önerisi değerlendirildi.** Önemli ayrım netleştirildi: Supabase bir **veritabanı** servisidir, uygulama barındıramaz (Edge Functions Deno'dur, .NET değil) — yani Oracle'ın yerine geçmez, *bir parçasının* yerine geçer.
+  * **Ama kritik bir kazanç sağladı:** Veritabanı Supabase'e taşındığında sunucudaki bellek ihtiyacı ~490 MB'dan ~340 MB'a düştü ve **1 GB RAM kısıtı sorun olmaktan çıktı.**
+  * **Neden Supabase, Neon değil:** Neon'un ücretsiz katmanında **100 CU-hour/ay** compute limiti var; Hangfire 15 saniyede bir sorgu attığı için bu limit aşılırdı. Supabase'de compute limiti yok, yalnızca 7 günlük inaktivite pause'u var — Hangfire sürekli sorgu attığı için o durum hiç oluşmuyor.
+* **30 Temmuz 2026, 10:20** - Sunucu hazırlandı: **2 GB swap** (`swappiness=10`, 1 GB RAM için güvenlik ağı), **Docker 29.6.2 + Compose v5.3.1**.
+* **30 Temmuz 2026, 10:30** - 🔥 **Firewall'un iki katmanı açıldı** — Oracle'da en sık takılan yer:
+  1. **Sunucu içi `iptables`:** Oracle Ubuntu imajı `INPUT` zincirinde 22 dışında her şeyi REJECT ediyor. 80/443 kuralları **REJECT satırından ÖNCE** (pozisyon 5-6) eklendi ve `netfilter-persistent` ile kalıcılaştırıldı. Yanlış sıraya eklenirse kurallar sessizce etkisiz kalır.
+  2. **Oracle Security List:** Konsoldan 80/443 ingress kuralları (kullanıcı tarafından).
+* **30 Temmuz 2026, 10:45** - Repo sunucuya klonlandı; `.env` (600 izinli) ve `secrets/` (700) oluşturuldu. **JWT anahtarı sunucuda `openssl` ile üretildi** — hiçbir yerde dolaşmadı. GitHub App private key'i `scp` ile yüklendi.
+* **30 Temmuz 2026, 11:00** - `docker-compose.prod.yml` **Supabase'e göre yeniden yazıldı:** yerel `postgres` servisi kaldırıldı, bağlantı Supavisor'a yönlendirildi.
+  * **Supavisor session mode (port 5432) kullanıldı**, transaction mode (6543) değil — transaction mode prepared statement desteklemez ve EF Core ile Hangfire'ın ikisi de buna ihtiyaç duyar.
+  * **Pooler adresi zorunlu:** Supabase'in doğrudan bağlantısı yalnızca IPv6 üzerinden erişilebilir; sunucumuz IPv4.
+  * `Maximum Pool Size=12` ile sınırlandı (Npgsql varsayılanı 100) — ücretsiz katmanın bağlantı bütçesini tüketmemek için.
+* **30 Temmuz 2026, 11:06** - 🎉 **BACKEND YAYINDA.** `docker compose up -d --build` → 1 OCPU'da build tamamlandı, migration'lar Supabase'e uygulandı, Caddy **Let's Encrypt sertifikasını otomatik aldı**.
+  * `GET https://api.streak-tracker.me/health` → **200** `{"status":"healthy","database":"connected"}`
+  * `/swagger` → **404** (production'da kapalı ✓) · rozet → **200** · korumalı endpoint token'sız → **401** · OAuth login → **302** doğru production callback'iyle
+  * SSL: Let's Encrypt, 28 Ekim 2026'ya kadar, otomatik yenilenecek
+* **30 Temmuz 2026, 11:07** - 🛡️ **Gerçek dünya gözlemi:** Sunucu yayına çıktığı dakikalar içinde bir zafiyet tarayıcı botu (`143.198.85.89`) `/backup/.env`, `/actuator/env`, `/config/default.json` gibi yolları taramaya başladı. **Hepsi 404** döndü — Caddy hiç statik dosya servis etmiyor, yalnızca API'ye reverse proxy yapıyor. Aşama 0'da sırları env'e taşıma kararı ilk dakikadan işe yaradı.
+* **30 Temmuz 2026, 14:50** - **Frontend Vercel'e alındı** (root directory `frontend`, `NEXT_PUBLIC_API_BASE_URL=https://api.streak-tracker.me`).
+  * **Çözülen yapılandırma hatası:** Vercel apex'i otomatik olarak `www`'ye 308 ile yönlendiriyordu. Bu bırakılsaydı tarayıcı API'ye `Origin: https://www.streak-tracker.me` gönderecek, CORS ayarımız apex beklediği için **dashboard hiç veri çekemeyecekti**. Yön ters çevrildi: apex birincil (Production), `www` → apex.
+  * Ayrıca `www` varyantı da izin verilen origin listesine **güvenlik ağı** olarak eklendi (`Cors__AllowedOrigins__1`).
+  * **Çözülen DNS çakışması:** `www` için iki CNAME kaydı vardı (biri apex'e, biri Vercel'e). Aynı host için tek CNAME olabilir; eskisi kaldırıldı.
+* **30 Temmuz 2026, 15:10** - ✅ **FRONTEND YAYINDA.** `https://streak-tracker.me` → **200**, içerik ve API adresi doğrulandı, SSL `CN=streak-tracker.me`.
+  * ℹ️ Kullanıcının bilgisayarında eski GitHub Pages IP'leri cache'te kaldığı için sayfa geç göründü; **telefondan doğrulandı, altyapı sağlam.** Sebep: Wi-Fi ağ geçidinin (`172.20.10.1`) DNS cache'i. Bir süre sonra kendiliğinden düzeldi.
+* **30 Temmuz 2026, 15:45** - 🐞 **Çözülen Hata (deploy kaynaklı): "GitHub App yapılandırılmamış" uyarısı.** Panelde App kurulu olmasına rağmen bu mesaj görünüyordu.
+  * **Kök neden:** Dockerfile güvenlik gereği **root olmayan kullanıcı** (uid 5678) kullanıyor, ancak host'taki `secrets/` klasörü `ubuntu` kullanıcısına (uid 1001) ait ve `700` izinliydi. Bind mount host izinlerini koruduğu için container klasöre **hiç giremiyordu** (`Permission denied`).
+  * `GitHubAppOptions.IsConfigured`, `File.Exists(PrivateKeyPath)` kontrolüne dayanıyor; .NET izin hatasında istisna fırlatmaz, `false` döner. Bu yüzden hata "yapılandırma eksik" gibi göründü — **sessizce yanlış yönlendiren** bir durum.
+  * **Düzeltme:** `sudo chown -R 5678:5678 secrets` + `chmod 700/400`. Böylece anahtarı yalnızca uygulama okuyabiliyor; sunucuya SSH ile giren biri bile `sudo` olmadan göremiyor.
+  * Tekrar yaşanmaması için `docker-compose.prod.yml` ve `README.md`'ye açık uyarı eklendi.
+
+---
+
+### 🏁 MVP TAMAMLANDI — 30 Temmuz 2026, 17:02
+
+**Proje canlıda ve uçtan uca çalışıyor.** [streak-tracker.me](https://streak-tracker.me) · [api.streak-tracker.me](https://api.streak-tracker.me/health)
+
+#### Canlı doğrulanan testler
+
+| # | Test | Sonuç |
+|---|---|---|
+| 1 | Giriş → onboarding → dashboard (production OAuth) | ✅ |
+| 2 | Test bildirimi → **telefona push** (bot kimliğiyle) | ✅ |
+| 3 | Rozet → profil README'sinde render | ✅ |
+| 6 | **Kalıcılık:** container'lar silinip yeniden oluşturuldu | ✅ DataProtection anahtarı korundu, token çözümleme hatası yok, oturum bozulmadı |
+
+Dashboard'da streak kartları, katkı heatmap'i, rozet önizlemesi ve bildirim ayarları gerçek verilerle çalışıyor.
+
+#### ⏳ Henüz denenmemiş testler
+
+* **Zamanlanmış job'ın kendiliğinden çalışması.** Bugüne kadar bildirimler **hep elle** tetiklendi. `StreakCheckJob`'ın 20:00 UTC'de insan müdahalesi olmadan çalıştığı görülmedi. Test için: bugün commit atmamış olmak + bildirim saatini yakın bir saate almak gerekiyor.
+* **Çok kullanıcılı akış.** Sistem yalnızca tek kullanıcıyla (`Berkowhiskey`) çalıştı. İkinci bir hesabın kaydı, kendi gizli reposu, kendi App kurulumu ve ayrı streak hesabı hiç denenmedi. Kullanıcı bu test için anonim bir hesap hazırladı.
+
+#### Toplam maliyet: **aylık $0**
+
+Oracle Cloud Always Free (süresiz) + Supabase (ücretsiz katman) + Vercel (ücretsiz) + Namecheap `.me` (Student Pack, 1 yıl ücretsiz — sonrasında ~$20/yıl veya DuckDNS'e geçiş).
+
+#### Kapsam dışı bırakılanlar (sıradaki iş listesi)
+
+Zaman dilimi desteği · Telegram/e-posta fallback · Milestone bildirimleri · Streak dondurma · Haftalık özet · Leaderboard · Public profil sayfası · Rozet çeşitleri · `NotificationService` / `GitHubAppService` birim testleri
+

@@ -1,49 +1,39 @@
 # ---------------------------------------------------------------------------
-# StreakTracker - production yigini (Oracle Cloud / herhangi bir Linux sunucu)
+# StreakTracker - production yigini
+#
+# Veritabani harici bir yonetimli servistedir (Supabase); bu yuzden burada
+# postgres container'i yoktur. Yerel gelistirme veritabani icin
+# docker-compose.yml kullanilir.
 #
 # Kullanim:
-#   cp .env.example .env      &&  degerleri doldur  &&  chmod 600 .env
-#   mkdir -p secrets          &&  GitHub App .pem dosyasini icine koy
+#   cp .env.example .env   &&  degerleri doldur  &&  chmod 600 .env
+#   mkdir -p secrets       &&  GitHub App .pem dosyasini icine koy
 #   docker compose -f docker-compose.prod.yml up -d --build
 #
-# Yalnizca Caddy disariya acilir (80/443). API ve veritabani ic aga kapalidir.
+# Yalnizca Caddy disariya acilir (80/443). API ic aga kapalidir.
 # ---------------------------------------------------------------------------
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: streaktracker-postgres-prod
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    # Port disari acilmaz; veritabanina yalnizca Docker agindan erisilir.
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-    networks:
-      - streaktracker
-
   api:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: streaktracker-api
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: Production
 
       # ASP.NET Core yapilandirmasinda ic ice bolumler "__" ile ifade edilir.
-      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}"
+      #
+      # Supabase notlari:
+      #  - "pooler.supabase.com" (Supavisor) kullaniliyor cunku dogrudan baglanti
+      #    yalnizca IPv6 uzerinden erisilebilir.
+      #  - Port 5432 = SESSION mode. Transaction mode (6543) prepared statement
+      #    desteklemez; EF Core ve Hangfire ikisi de buna ihtiyac duyar.
+      #  - Havuz boyutu bilincli olarak kucuk: Supabase'in ucretsiz katmanindaki
+      #    baglanti butcesini tuketmemek icin (Npgsql varsayilani 100'dur).
+      ConnectionStrings__DefaultConnection: >-
+        Host=${SUPABASE_DB_HOST};Port=5432;Database=${SUPABASE_DB_NAME};Username=${SUPABASE_DB_USER};Password=${SUPABASE_DB_PASSWORD};SSL Mode=Require;Maximum Pool Size=12;Timeout=30;Command Timeout=60
 
       App__PublicBaseUrl: ${APP_PUBLIC_BASE_URL}
       App__FrontendBaseUrl: ${APP_FRONTEND_BASE_URL}
@@ -53,7 +43,10 @@ services:
       App__DataProtectionKeysPath: /keys
       App__RunMigrationsOnStartup: "true"
 
+      # Birincil adres apex'tir; "www" varyanti yalnizca guvenlik agi olarak
+      # eklenir (kullanici www uzerinden gelirse CORS hatasi almasin).
       Cors__AllowedOrigins__0: ${CORS_ALLOWED_ORIGIN}
+      Cors__AllowedOrigins__1: ${CORS_ALLOWED_ORIGIN_WWW:-${CORS_ALLOWED_ORIGIN}}
 
       Jwt__Key: ${JWT_KEY}
 
@@ -67,6 +60,14 @@ services:
     volumes:
       - dataprotection-keys:/keys
       # GitHub App imzalama anahtari - salt okunur baglanir.
+      #
+      # ONEMLI: Container root olmayan bir kullanici (uid 5678) olarak calisir.
+      # Bind mount host izinlerini korudugu icin klasorun sahipligi de bu
+      # kullaniciya verilmelidir; aksi halde dosya okunamaz ve uygulama
+      # "GitHub App yapilandirilmamis" der (sessiz bir hata):
+      #
+      #   sudo chown -R 5678:5678 secrets
+      #   sudo chmod 700 secrets && sudo chmod 400 secrets/*.pem
       - ./secrets:/secrets:ro
     networks:
       - streaktracker
@@ -92,8 +93,6 @@ services:
       - streaktracker
 
 volumes:
-  postgres-data:
-    name: streaktracker-postgres-data-prod
   dataprotection-keys:
     name: streaktracker-dataprotection-keys
   caddy-data:
