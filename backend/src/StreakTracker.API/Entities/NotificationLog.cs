@@ -28,6 +28,17 @@ public class NotificationLog
     /// </summary>
     public bool IsTest { get; set; }
 
+    /// <summary>
+    /// Bu kayit bir kilometre tasi kutlamasiysa, kutlanan gun sayisi (7, 30, 100, 365).
+    /// Uyari bildirimlerinde null'dir.
+    /// <para>
+    /// Ayni kilometre tasinin ayni seri icinde iki kez kutlanmasini engellemek icin
+    /// kullanilir. Seri kirilip yeniden ayni esige ulasilirsa tekrar kutlanir -
+    /// bu yeni bir basaridir.
+    /// </para>
+    /// </summary>
+    public int? MilestoneDay { get; set; }
+
     /// <summary>Basarisiz gonderimlerde yakalanan hata (orn. GitHub rate-limit mesaji).</summary>
     public string? ErrorMessage { get; set; }
 

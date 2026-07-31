@@ -6,15 +6,20 @@ import { api, ApiError, type CurrentUser } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckIcon, FlameIcon } from "@/components/icons";
-import { HOUR_OPTIONS } from "@/lib/hours";
+import { HOUR_OPTIONS, detectTimeZone, formatUtcOffset } from "@/lib/hours";
+import { useLanguage } from "@/components/language-provider";
+import { LanguageSwitcher } from "@/components/language-switcher";
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const { t } = useLanguage();
 
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [accepted, setAccepted] = useState(false);
   const [hour, setHour] = useState(20);
+  // Saat dilimi tarayicidan otomatik alginir; kullanici panelden degistirebilir.
+  const [timeZone, setTimeZone] = useState("UTC");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,7 +34,8 @@ export default function OnboardingPage() {
         }
 
         setUser(current);
-        setHour(current.preferredNotificationHourUtc);
+        setHour(current.preferredNotificationHour);
+        setTimeZone(detectTimeZone());
         setLoading(false);
       })
       .catch((err: ApiError) => {
@@ -48,10 +54,10 @@ export default function OnboardingPage() {
     setError(null);
 
     try {
-      await api.completeOnboarding(true, hour);
+      await api.completeOnboarding(true, hour, timeZone);
       router.push("/dashboard");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Kurulum tamamlanamadi.");
+      setError(err instanceof ApiError ? err.message : t.onboarding.error);
       setSubmitting(false);
     }
   }
@@ -59,7 +65,7 @@ export default function OnboardingPage() {
   if (loading) {
     return (
       <main className="flex flex-1 items-center justify-center">
-        <p className="text-sm text-muted-foreground">Yukleniyor…</p>
+        <p className="text-sm text-muted-foreground">{t.common.loading}</p>
       </main>
     );
   }
@@ -68,54 +74,44 @@ export default function OnboardingPage() {
     <main className="flex flex-1 items-center justify-center px-6 py-12">
       <Card className="w-full max-w-2xl">
         <CardHeader className="space-y-3">
-          <div className="flex items-center gap-3">
-            <FlameIcon className="h-8 w-8" />
-            <CardTitle className="text-2xl">Son bir adim kaldi</CardTitle>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <FlameIcon className="h-8 w-8" />
+              <CardTitle className="text-2xl">{t.onboarding.title}</CardTitle>
+            </div>
+            <LanguageSwitcher />
           </div>
           <p className="text-sm text-muted-foreground">
-            Merhaba <strong>{user?.gitHubUsername}</strong>! Bildirimleri
-            calistirabilmemiz icin hesabinda kucuk bir kurulum yapmamiz gerekiyor.
-            Ne yapacagimizi asagida acikca anlatiyoruz.
+            {t.onboarding.greeting} <strong>{user?.gitHubUsername}</strong>!{" "}
+            {t.onboarding.intro}
           </p>
         </CardHeader>
 
         <CardContent className="space-y-6">
           <section className="space-y-3 rounded-lg border bg-muted/30 p-4">
-            <h2 className="text-sm font-semibold">Onayinla neler yapacagiz?</h2>
+            <h2 className="text-sm font-semibold">{t.onboarding.whatWeDo}</h2>
             <ul className="space-y-3 text-sm text-muted-foreground">
-              <ExplainItem title="Gizli bir repo olusturacagiz">
-                Hesabinda <code className="text-foreground">.streak-tracker-notifications</code>{" "}
-                adinda <strong>gizli (private)</strong> bir repo acilacak. Icerigini
-                senden baskasi goremez.
+              <ExplainItem title={t.onboarding.steps.repo.title}>
+                <code className="text-foreground">.streak-tracker-notifications</code>{" "}
+                {t.onboarding.steps.repo.body}
               </ExplainItem>
-              <ExplainItem title="Icine tek bir Issue acacagiz">
-                Bildirimleri bu Issue&apos;ya yorum olarak dusurecegiz. GitHub Mobile
-                bu yorumu telefonuna push bildirimi olarak iletir. Bildirim
-                mekanizmamiz budur.
+              <ExplainItem title={t.onboarding.steps.issue.title}>
+                {t.onboarding.steps.issue.body}
               </ExplainItem>
-              <ExplainItem title="Katki gecmisini okuyacagiz">
-                Streak&apos;ini hesaplayabilmek icin gunluk katki takvimini
-                okuyoruz. <strong>Kodlarini okumuyoruz</strong>; yalnizca hangi gun
-                kac katki yaptigin bilgisini kullaniyoruz.
+              <ExplainItem title={t.onboarding.steps.contributions.title}>
+                {t.onboarding.steps.contributions.body}
               </ExplainItem>
             </ul>
           </section>
 
           <section className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
-            <h2 className="text-sm font-semibold">
-              Neden &quot;repo&quot; izni istiyoruz?
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              GitHub, gizli repo olusturabilmek ve private repo&apos;lardaki
-              commit&apos;lerinin seriye sayilabilmesi icin bu izni zorunlu tutuyor.
-              Daha dar bir izin secenegi sunmuyor. Izni istedigin an GitHub
-              ayarlarindan geri alabilirsin.
-            </p>
+            <h2 className="text-sm font-semibold">{t.onboarding.repoScope.title}</h2>
+            <p className="text-sm text-muted-foreground">{t.onboarding.repoScope.body}</p>
           </section>
 
           <section className="space-y-2">
             <label htmlFor="hour" className="text-sm font-medium">
-              Bildirim saati (UTC)
+              {t.onboarding.notificationHour}
             </label>
             <select
               id="hour"
@@ -129,9 +125,14 @@ export default function OnboardingPage() {
                 </option>
               ))}
             </select>
-            <p className="text-xs text-muted-foreground">
-              O saatte hala commit atmamissan uyari gonderiyoruz. Bu ayari sonradan
-              degistirebilirsin.
+            <p className="text-xs text-muted-foreground">{t.onboarding.hourNote}</p>
+
+            <p className="rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              {t.onboarding.timeZoneDetected}{" "}
+              <strong className="text-foreground">
+                {timeZone} {formatUtcOffset(timeZone)}
+              </strong>
+              {t.onboarding.timeZoneNote}
             </p>
           </section>
 
@@ -142,11 +143,7 @@ export default function OnboardingPage() {
               onChange={(e) => setAccepted(e.target.checked)}
               className="mt-0.5 h-4 w-4"
             />
-            <span className="text-sm">
-              Yukaridaki islemleri okudum ve onayliyorum. GitHub hesabimda gizli
-              repo ve Issue olusturulmasina, katki takvimimin streak hesabi icin
-              okunmasina izin veriyorum.
-            </span>
+            <span className="text-sm">{t.onboarding.consent}</span>
           </label>
 
           {error && (
@@ -162,7 +159,7 @@ export default function OnboardingPage() {
               size="lg"
               className="flex-1"
             >
-              {submitting ? "Kurulum yapiliyor…" : "Onayla ve kurulumu tamamla"}
+              {submitting ? t.onboarding.submitting : t.onboarding.submit}
             </Button>
 
             <Button
@@ -173,12 +170,12 @@ export default function OnboardingPage() {
                 router.push("/");
               }}
             >
-              Vazgec
+              {t.common.cancel}
             </Button>
           </div>
 
           <p className="text-center text-xs text-muted-foreground">
-            Onay vermezsen hesabinda hicbir sey olusturulmaz.
+            {t.onboarding.noConsentNote}
           </p>
         </CardContent>
       </Card>

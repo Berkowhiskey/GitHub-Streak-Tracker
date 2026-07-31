@@ -45,7 +45,7 @@ public class OnboardingService : IOnboardingService
                 "Bildirim altyapisinin kurulabilmesi icin onay vermeniz gerekir.");
         }
 
-        if (request.PreferredNotificationHourUtc is { } hour)
+        if (request.PreferredNotificationHour is { } hour)
         {
             if (hour is < 0 or > 23)
             {
@@ -53,7 +53,15 @@ public class OnboardingService : IOnboardingService
                     nameof(request), "Bildirim saati 0-23 araliginda olmalidir.");
             }
 
-            user.PreferredNotificationHourUtc = hour;
+            user.PreferredNotificationHour = hour;
+        }
+
+        // Saat dilimi onboarding'de tarayicidan otomatik alginir; taninmayan bir
+        // deger gelirse sessizce UTC'de birakiriz (bildirim akisi bloklanmamali).
+        if (!string.IsNullOrWhiteSpace(request.TimeZoneId))
+        {
+            var resolved = UserClock.Resolve(request.TimeZoneId);
+            user.TimeZoneId = resolved.Id == TimeZoneInfo.Utc.Id ? UserClock.FallbackTimeZoneId : request.TimeZoneId;
         }
 
         if (!user.HasAcceptedTerms)

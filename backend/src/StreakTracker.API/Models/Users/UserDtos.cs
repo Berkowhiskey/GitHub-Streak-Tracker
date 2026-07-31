@@ -5,8 +5,14 @@ namespace StreakTracker.API.Models.Users;
 /// </summary>
 public class UpdatePreferencesRequest
 {
-    /// <summary>Bildirim saati (UTC, 0-23).</summary>
-    public int? PreferredNotificationHourUtc { get; set; }
+    /// <summary>Bildirim saati (0-23), kullanicinin kendi saat diliminde.</summary>
+    public int? PreferredNotificationHour { get; set; }
+
+    /// <summary>IANA saat dilimi kimligi (orn. "Europe/Istanbul").</summary>
+    public string? TimeZoneId { get; set; }
+
+    /// <summary>Dil kodu: "tr" veya "en".</summary>
+    public string? Language { get; set; }
 
     /// <summary>false yapilirsa kullaniciya bildirim gonderilmez.</summary>
     public bool? IsActive { get; set; }

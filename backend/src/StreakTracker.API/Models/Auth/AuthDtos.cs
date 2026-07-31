@@ -26,7 +26,12 @@ public record CurrentUserDto(
     string? AvatarUrl,
     bool HasAcceptedTerms,
     bool IsActive,
-    int PreferredNotificationHourUtc,
+    /// <summary>Bildirim saati, kullanicinin kendi saat diliminde (0-23).</summary>
+    int PreferredNotificationHour,
+    /// <summary>IANA saat dilimi kimligi (orn. "Europe/Istanbul").</summary>
+    string TimeZoneId,
+    /// <summary>Dil kodu: "tr" veya "en".</summary>
+    string Language,
     string? NotificationRepoName,
     int? NotificationIssueNumber,
     /// <summary>
@@ -51,8 +56,14 @@ public class OnboardingRequest
     /// </summary>
     public bool AcceptTerms { get; set; }
 
-    /// <summary>Bildirim gonderilecek saat (UTC, 0-23). Belirtilmezse varsayilan korunur.</summary>
-    public int? PreferredNotificationHourUtc { get; set; }
+    /// <summary>Bildirim saati (0-23), kullanicinin saat diliminde. Belirtilmezse varsayilan korunur.</summary>
+    public int? PreferredNotificationHour { get; set; }
+
+    /// <summary>
+    /// Tarayicidan otomatik alginan IANA saat dilimi (orn. "Europe/Istanbul").
+    /// Belirtilmezse UTC varsayilir.
+    /// </summary>
+    public string? TimeZoneId { get; set; }
 }
 
 /// <summary>

@@ -1,76 +1,67 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
+import { LOCALE_COOKIE, getDictionary, resolveInitialLocale } from "@/lib/i18n";
 
-export const metadata = {
-  title: "Izinler ve Gizlilik — StreakTracker",
-};
+export async function generateMetadata() {
+  const cookieStore = await cookies();
+  const t = getDictionary(resolveInitialLocale(cookieStore.get(LOCALE_COOKIE)?.value));
 
-export default function PrivacyPage() {
+  return { title: t.meta.privacyTitle };
+}
+
+export default async function PrivacyPage() {
+  const cookieStore = await cookies();
+  const locale = resolveInitialLocale(cookieStore.get(LOCALE_COOKIE)?.value);
+  const t = getDictionary(locale);
+
   return (
     <main className="mx-auto w-full max-w-2xl flex-1 px-6 py-12">
       <Link
         href="/"
         className="text-sm text-muted-foreground underline underline-offset-4"
       >
-        ← Ana sayfa
+        ← {t.common.back}
       </Link>
 
-      <h1 className="mt-6 text-3xl font-bold">Izinler ve Gizlilik</h1>
+      <h1 className="mt-6 text-3xl font-bold">{t.privacy.title}</h1>
 
       <div className="mt-8 space-y-8 text-sm leading-relaxed text-muted-foreground">
         <section className="space-y-2">
           <h2 className="text-base font-semibold text-foreground">
-            Hangi izinleri istiyoruz?
+            {t.privacy.permissions}
           </h2>
           <ul className="list-inside list-disc space-y-1">
             <li>
-              <strong className="text-foreground">repo</strong> — Gizli bildirim
-              reposunu olusturmak, Issue&apos;ya yorum atmak ve private
-              repo&apos;lardaki commit&apos;lerin seriye sayilmasi icin. GitHub
-              bunun icin daha dar bir izin sunmuyor.
+              <strong className="text-foreground">repo</strong> — {t.privacy.repoScope}
             </li>
             <li>
-              <strong className="text-foreground">read:user</strong> — Profil
-              bilgin ve katki takvimin icin.
+              <strong className="text-foreground">read:user</strong> — {t.privacy.readUser}
             </li>
             <li>
-              <strong className="text-foreground">user:email</strong> — Yedek
-              bildirim kanali icin e-posta adresin.
+              <strong className="text-foreground">user:email</strong> — {t.privacy.userEmail}
             </li>
           </ul>
         </section>
 
         <section className="space-y-2">
           <h2 className="text-base font-semibold text-foreground">
-            Neleri saklıyoruz?
+            {t.privacy.whatWeStore}
           </h2>
-          <p>
-            GitHub kullanici adin, sayisal kimligin, e-postan, avatar adresin;
-            streak verilerin (guncel seri, rekor, son commit gunu) ve gonderilen
-            bildirimlerin kaydi. GitHub access token&apos;in veritabaninda{" "}
-            <strong className="text-foreground">sifrelenmis</strong> olarak tutulur.
-          </p>
+          <p>{t.privacy.whatWeStoreBody}</p>
         </section>
 
         <section className="space-y-2">
           <h2 className="text-base font-semibold text-foreground">
-            Neleri saklamiyoruz?
+            {t.privacy.whatWeDont}
           </h2>
-          <p>
-            Kodlarini okumuyor, indirmiyor veya saklamiyoruz. Repo iceriklerine
-            erisimimiz yalnizca bildirim reposunu olusturmak ve o repodaki
-            Issue&apos;ya yorum atmakla sinirli kullanilir.
-          </p>
+          <p>{t.privacy.whatWeDontBody}</p>
         </section>
 
         <section className="space-y-2">
           <h2 className="text-base font-semibold text-foreground">
-            Verilerini silmek istersen
+            {t.privacy.deletion}
           </h2>
-          <p>
-            Panelindeki <strong className="text-foreground">Hesabi sil</strong>{" "}
-            butonu ile tum verilerin kalici olarak silinir. Ayrica GitHub
-            ayarlarindan uygulamanin erisimini istedigin an geri alabilirsin.
-          </p>
+          <p>{t.privacy.deletionBody}</p>
         </section>
       </div>
     </main>

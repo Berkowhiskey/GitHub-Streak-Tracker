@@ -40,7 +40,10 @@ public class StreakService : IStreakService
             throw new InvalidOperationException($"Kullanici bulunamadi: {userId}");
         }
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        // "Bugun" kullanicinin kendi saat diliminde belirlenir; aksi halde gece
+        // atilan commit'ler yanlis gune yazilir ve seri hatali hesaplanir.
+        var timeZone = UserClock.Resolve(user.TimeZoneId);
+        var today = UserClock.TodayIn(timeZone);
         var from = today.AddDays(-ContributionWindowDays);
 
         var contributionDays = await _gitHubService.GetContributionDaysAsync(
@@ -99,7 +102,8 @@ public class StreakService : IStreakService
                 u.Streak != null ? u.Streak.CurrentStreak : 0,
                 u.Streak != null ? u.Streak.LongestStreak : 0,
                 u.Streak != null && u.Streak.HasCommittedToday,
-                u.Streak != null ? u.Streak.LastCommitDate : null))
+                u.Streak != null ? u.Streak.LastCommitDate : null,
+                u.Language))
             .FirstOrDefaultAsync(cancellationToken);
     }
 }

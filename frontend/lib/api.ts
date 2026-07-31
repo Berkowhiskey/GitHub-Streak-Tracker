@@ -75,7 +75,12 @@ export interface CurrentUser {
   avatarUrl: string | null;
   hasAcceptedTerms: boolean;
   isActive: boolean;
-  preferredNotificationHourUtc: number;
+  /** Bildirim saati, kullanicinin kendi saat diliminde (0-23). */
+  preferredNotificationHour: number;
+  /** IANA saat dilimi kimligi (orn. "Europe/Istanbul"). */
+  timeZoneId: string;
+  /** Dil kodu: "tr" veya "en". */
+  language: string;
   notificationRepoName: string | null;
   notificationIssueNumber: number | null;
   /** GitHub App kurulu mu? Kurulu degilse bildirimler gonderilemez. */
@@ -137,10 +142,14 @@ export const api = {
   logout: () =>
     request<{ loggedOut: boolean }>("/api/v1/auth/logout", { method: "POST" }),
 
-  completeOnboarding: (acceptTerms: boolean, preferredNotificationHourUtc?: number) =>
+  completeOnboarding: (
+    acceptTerms: boolean,
+    preferredNotificationHour?: number,
+    timeZoneId?: string,
+  ) =>
     request<OnboardingResult>("/api/v1/onboarding/complete", {
       method: "POST",
-      body: JSON.stringify({ acceptTerms, preferredNotificationHourUtc }),
+      body: JSON.stringify({ acceptTerms, preferredNotificationHour, timeZoneId }),
     }),
 
   getStreak: () => request<StreakStatus>("/api/v1/streaks/me"),
@@ -151,14 +160,20 @@ export const api = {
   getCalendar: (days = 364) =>
     request<CalendarDay[]>(`/api/v1/streaks/me/calendar?days=${days}`),
 
-  getBadgeSnippets: () => request<BadgeSnippets>("/api/v1/users/me/badge"),
+  /** Dil aciktan gonderilir: tercih kaydedilmeyi beklemeden dogru kod uretilsin. */
+  getBadgeSnippets: (lang?: string) =>
+    request<BadgeSnippets>(
+      lang ? `/api/v1/users/me/badge?lang=${lang}` : "/api/v1/users/me/badge",
+    ),
 
   /** GitHub App kurulumunu GitHub'a sorarak dogrular. */
   getAppStatus: () =>
     request<AppInstallationStatus>("/api/v1/users/me/app-status"),
 
   updatePreferences: (preferences: {
-    preferredNotificationHourUtc?: number;
+    preferredNotificationHour?: number;
+    timeZoneId?: string;
+    language?: string;
     isActive?: boolean;
   }) =>
     request<CurrentUser>("/api/v1/users/me/preferences", {

@@ -1,3 +1,5 @@
+using StreakTracker.API.Enums;
+
 namespace StreakTracker.API.Entities;
 
 /// <summary>
@@ -38,8 +40,31 @@ public class User
     /// </summary>
     public long? GitHubAppInstallationId { get; set; }
 
-    /// <summary>Kullaniciya bildirim gonderilecek saat (UTC, 0-23). Varsayilan 20:00 UTC.</summary>
-    public int PreferredNotificationHourUtc { get; set; } = 20;
+    /// <summary>
+    /// Bildirim gonderilecek saat (0-23), <b>kullanicinin kendi saat diliminde</b>.
+    /// <para>
+    /// UTC yerine yerel saat saklanir: kullanici "20:00'da uyar" dediginde yaz/kis
+    /// saati degisse bile 20:00'da uyarilmalidir. UTC'de saklamak DST gecislerinde
+    /// bir saatlik kaymaya yol acardi.
+    /// </para>
+    /// </summary>
+    public int PreferredNotificationHour { get; set; } = 20;
+
+    /// <summary>
+    /// Kullanicinin IANA saat dilimi kimligi (orn. "Europe/Istanbul").
+    /// <para>
+    /// Streak'in "bugun"u, gun sonuna kalan sure ve bildirim saati bu dilime gore
+    /// hesaplanir. Varsayilan "UTC" oldugu icin saat dilimi secmemis kullanicilarin
+    /// davranisi degismez.
+    /// </para>
+    /// </summary>
+    public string TimeZoneId { get; set; } = "UTC";
+
+    /// <summary>
+    /// Kullanicinin tercih ettigi dil. Bildirim mesajlari, rozet etiketleri ve
+    /// arayuz bu secime gore uretilir. Varsayilan Turkce.
+    /// </summary>
+    public AppLanguage Language { get; set; } = AppLanguage.Turkish;
 
     /// <summary>Kullanici bildirim almayi durdurdugunda false olur; job'lar bu kullaniciyi atlar.</summary>
     public bool IsActive { get; set; } = true;

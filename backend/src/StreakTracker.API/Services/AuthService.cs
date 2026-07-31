@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using StreakTracker.API.Data;
 using StreakTracker.API.Entities;
+using StreakTracker.API.Enums;
 using StreakTracker.API.Exceptions;
 using StreakTracker.API.Models.Auth;
 using StreakTracker.API.Options;
@@ -231,7 +232,9 @@ public class AuthService : IAuthService
         user.AvatarUrl,
         user.HasAcceptedTerms,
         user.IsActive,
-        user.PreferredNotificationHourUtc,
+        user.PreferredNotificationHour,
+        user.TimeZoneId,
+        user.Language.ToCode(),
         user.PrivateNotificationRepoName,
         user.NotificationIssueNumber,
         user.GitHubAppInstallationId is not null);

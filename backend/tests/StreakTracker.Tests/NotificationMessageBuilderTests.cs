@@ -71,4 +71,58 @@ public class NotificationMessageBuilderTests
 
         Assert.Contains(expected, message);
     }
+
+    // ------------------------------------------------------------------
+    // Kilometre taslari
+    // ------------------------------------------------------------------
+
+    [Theory]
+    [InlineData(7, true)]
+    [InlineData(30, true)]
+    [InlineData(100, true)]
+    [InlineData(365, true)]
+    [InlineData(1, false)]
+    [InlineData(6, false)]
+    [InlineData(8, false)]
+    [InlineData(99, false)]
+    public void Kilometre_taslari_dogru_taninir(int streak, bool expected)
+    {
+        Assert.Equal(expected, NotificationMessageBuilder.IsMilestone(streak));
+    }
+
+    [Fact]
+    public void Kutlama_mesaji_mention_ile_baslar_ve_uyari_gibi_gorunmez()
+    {
+        var message = NotificationMessageBuilder.BuildMilestone("Berkowhiskey", 30, 30);
+
+        Assert.StartsWith("@Berkowhiskey", message);
+        // Kutlama bir sey yapmasini istemez; uyari dilinden ayrisimalidir.
+        Assert.DoesNotContain("tehlikede", message);
+        Assert.DoesNotContain("commit at", message);
+    }
+
+    [Theory]
+    [InlineData(7, "hafta")]
+    [InlineData(30, "Bir aylik")]
+    [InlineData(100, "100 gun")]
+    [InlineData(365, "Bir yil")]
+    public void Her_esik_kendine_ozgu_metin_uretir(int streak, string expected)
+    {
+        var message = NotificationMessageBuilder.BuildMilestone("testuser", streak, streak);
+
+        Assert.Contains(expected, message);
+    }
+
+    [Fact]
+    public void Rekor_kirildiginda_ayrica_belirtilir()
+    {
+        // Seri rekora esit veya ustundeyse "yeni rekorun" denmeli.
+        var yeniRekor = NotificationMessageBuilder.BuildMilestone("testuser", 30, 30);
+        Assert.Contains("yeni rekorun", yeniRekor);
+
+        // Rekorun altindaysa mevcut rekor hatirlatilir.
+        var rekorAltinda = NotificationMessageBuilder.BuildMilestone("testuser", 30, 120);
+        Assert.DoesNotContain("yeni rekorun", rekorAltinda);
+        Assert.Contains("120 gun", rekorAltinda);
+    }
 }

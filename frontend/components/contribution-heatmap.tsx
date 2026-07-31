@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import type { CalendarDay } from "@/lib/api";
+import { useLanguage } from "@/components/language-provider";
 
 /** Katki yogunluguna gore renk siniflari (alev temasiyla uyumlu). */
 const LEVEL_CLASSES = [
@@ -20,9 +21,8 @@ function levelFor(count: number): number {
   return 4;
 }
 
-const DAY_LABELS = ["Pzt", "Çar", "Cum"];
-
 export function ContributionHeatmap({ days }: { days: CalendarDay[] }) {
+  const { t, locale } = useLanguage();
   // Gunleri haftalara boluyoruz: her sutun bir hafta, her satir haftanin bir gunu.
   const weeks = useMemo(() => {
     if (days.length === 0) return [];
@@ -58,23 +58,22 @@ export function ContributionHeatmap({ days }: { days: CalendarDay[] }) {
 
   if (weeks.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">
-        Henuz gosterilecek katki verisi yok.
-      </p>
+      <p className="text-sm text-muted-foreground">{t.heatmap.empty}</p>
     );
   }
 
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        Son bir yilda <strong className="text-foreground">{total}</strong> katki
+        {t.heatmap.totalPrefix} <strong className="text-foreground">{total}</strong>{" "}
+        {t.heatmap.totalSuffix}
       </p>
 
       {/* Genis icerik dar ekranlarda yatay kayar; sayfa govdesi kaymaz. */}
       <div className="overflow-x-auto pb-2">
         <div className="flex gap-3">
           <div className="flex flex-col justify-between py-[2px] text-[10px] text-muted-foreground">
-            {DAY_LABELS.map((label) => (
+            {t.heatmap.dayLabels.map((label) => (
               <span key={label}>{label}</span>
             ))}
           </div>
@@ -90,7 +89,7 @@ export function ContributionHeatmap({ days }: { days: CalendarDay[] }) {
                     }`}
                     title={
                       day
-                        ? `${formatDate(day.date)}: ${day.contributionCount} katki`
+                        ? `${formatDate(day.date, locale)}: ${day.contributionCount} ${t.heatmap.contributions}`
                         : undefined
                     }
                   />
@@ -102,18 +101,18 @@ export function ContributionHeatmap({ days }: { days: CalendarDay[] }) {
       </div>
 
       <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-        <span>Az</span>
+        <span>{t.heatmap.less}</span>
         {LEVEL_CLASSES.map((className, index) => (
           <div key={index} className={`h-[11px] w-[11px] rounded-[2px] ${className}`} />
         ))}
-        <span>Cok</span>
+        <span>{t.heatmap.more}</span>
       </div>
     </div>
   );
 }
 
-function formatDate(isoDate: string): string {
-  return new Date(isoDate + "T00:00:00Z").toLocaleDateString("tr-TR", {
+function formatDate(isoDate: string, locale: string): string {
+  return new Date(isoDate + "T00:00:00Z").toLocaleDateString(locale === "en" ? "en-US" : "tr-TR", {
     day: "numeric",
     month: "short",
     timeZone: "UTC",

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Net.Http.Headers;
+using StreakTracker.API.Enums;
 using StreakTracker.API.Models.Badges;
 using StreakTracker.API.Services.Interfaces;
 
@@ -44,6 +45,7 @@ public class BadgeController : ControllerBase
     public async Task<IActionResult> GetBadge(
         string username,
         [FromQuery] string? theme,
+        [FromQuery] string? lang,
         CancellationToken cancellationToken)
     {
         var badgeTheme = ParseTheme(theme);
@@ -58,10 +60,16 @@ public class BadgeController : ControllerBase
             // Bu icerik onbellege alinmamali; kullanici birazdan kaydolabilir.
             Response.Headers[HeaderNames.CacheControl] = "no-cache, no-store, must-revalidate";
 
-            return Content(_badgeService.GenerateNotFoundBadge(username, badgeTheme), "image/svg+xml");
+            return Content(
+                _badgeService.GenerateNotFoundBadge(username, badgeTheme, AppLanguageExtensions.ParseLanguage(lang)),
+                "image/svg+xml");
         }
 
-        var etag = _badgeService.ComputeETag(data, badgeTheme);
+        // Adreste ?lang verilmisse o gecerlidir; yoksa kullanicinin kayitli tercihi kullanilir.
+        // Boylece README'ye Ingilizce rozet koyulabilirken kullanicinin kendi dili de korunur.
+        var language = lang is null ? data.Language : AppLanguageExtensions.ParseLanguage(lang);
+
+        var etag = _badgeService.ComputeETag(data, badgeTheme, language);
 
         // Streak degismediyse icerigi yeniden gondermeye gerek yok.
         if (Request.Headers.IfNoneMatch.Any(value => value == etag))
@@ -72,7 +80,7 @@ public class BadgeController : ControllerBase
         Response.Headers[HeaderNames.ETag] = etag;
         Response.Headers[HeaderNames.CacheControl] = $"public, max-age={CacheMaxAgeSeconds}";
 
-        return Content(_badgeService.GenerateStreakBadge(data, badgeTheme), "image/svg+xml");
+        return Content(_badgeService.GenerateStreakBadge(data, badgeTheme, language), "image/svg+xml");
     }
 
     private static BadgeTheme ParseTheme(string? theme) =>

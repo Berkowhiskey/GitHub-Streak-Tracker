@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using StreakTracker.API.Data;
+using StreakTracker.API.Enums;
 using StreakTracker.API.Models.Auth;
 using StreakTracker.API.Models.Users;
 using StreakTracker.API.Options;
@@ -98,12 +99,30 @@ public class UsersController : BaseApiController
         if (user is null)
             return NotFound();
 
-        if (request.PreferredNotificationHourUtc is { } hour)
+        if (request.PreferredNotificationHour is { } hour)
         {
             if (hour is < 0 or > 23)
                 throw new ArgumentException("Bildirim saati 0-23 araliginda olmalidir.");
 
-            user.PreferredNotificationHourUtc = hour;
+            user.PreferredNotificationHour = hour;
+        }
+
+        if (request.TimeZoneId is { } timeZoneId)
+        {
+            // Taninmayan bir kimlik kaydedilirse tum zaman hesaplari sessizce UTC'ye
+            // duser; bu yuzden yazmadan once dogruluyoruz.
+            if (!IsValidTimeZone(timeZoneId))
+                throw new ArgumentException($"Gecersiz saat dilimi: {timeZoneId}");
+
+            user.TimeZoneId = timeZoneId;
+        }
+
+        if (request.Language is { } language)
+        {
+            if (!AppLanguageExtensions.IsSupported(language))
+                throw new ArgumentException($"Desteklenmeyen dil: {language}. Gecerli degerler: tr, en.");
+
+            user.Language = AppLanguageExtensions.ParseLanguage(language);
         }
 
         if (request.IsActive is { } isActive)
@@ -114,8 +133,8 @@ public class UsersController : BaseApiController
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
-            "Bildirim tercihleri guncellendi. Kullanici: {Username}, Saat: {Hour}, Aktif: {IsActive}",
-            user.GitHubUsername, user.PreferredNotificationHourUtc, user.IsActive);
+            "Bildirim tercihleri guncellendi. Kullanici: {Username}, Saat: {Hour}, Saat dilimi: {TimeZone}, Aktif: {IsActive}",
+            user.GitHubUsername, user.PreferredNotificationHour, user.TimeZoneId, user.IsActive);
 
         var updated = await _authService.GetCurrentUserAsync(CurrentUserId, cancellationToken);
 
@@ -123,22 +142,59 @@ public class UsersController : BaseApiController
     }
 
     /// <summary>
+    /// Verilen IANA kimliginin sistemde tanimli bir saat dilimine karsilik gelip
+    /// gelmedigini kontrol eder.
+    /// </summary>
+    private static bool IsValidTimeZone(string timeZoneId)
+    {
+        if (string.IsNullOrWhiteSpace(timeZoneId))
+            return false;
+
+        try
+        {
+            TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Profil README'sine yapistirilabilecek hazir rozet kodlarini dondurur.
     /// </summary>
     [HttpGet("me/badge")]
-    public async Task<ActionResult<BadgeSnippetsDto>> BadgeSnippets(CancellationToken cancellationToken)
+    public async Task<ActionResult<BadgeSnippetsDto>> BadgeSnippets(
+        [FromQuery] string? lang,
+        CancellationToken cancellationToken)
     {
-        var username = await _dbContext.Users
+        var profile = await _dbContext.Users
             .Where(u => u.Id == CurrentUserId)
-            .Select(u => u.GitHubUsername)
+            .Select(u => new { u.GitHubUsername, u.Language })
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (username is null)
+        if (profile is null)
             return NotFound();
 
+        var username = profile.GitHubUsername;
+
+        // Dil URL'e aciktan yaziliyor. Neden: rozetler uzun sureli onbelleklenir
+        // (tarayici max-age, ustelik GitHub README'de camo proxy'si). Dil yalnizca
+        // kullanicinin kayitli tercihinden okunsaydi ayni URL farkli icerik dondurur
+        // ve tercih degistiginde profildeki rozet uzun sure eski dilde kalirdi.
+        // Dil oncelikle sorgu parametresinden okunur, yoksa kullanicinin kayitli tercihi.
+        // Arayuz hangi dili istedigini zaten biliyor; boylece dil degistirildikten hemen
+        // sonra kod parcaciklari istendiginde kaydetme islemi bitmemis olsa bile dogru
+        // dil dondurulur (yaris durumu ortadan kalkar).
+        var language = lang is not null && AppLanguageExtensions.IsSupported(lang)
+            ? AppLanguageExtensions.ParseLanguage(lang)
+            : profile.Language;
+
+        var code = language.ToCode();
         var baseUrl = _appOptions.PublicBaseUrl.TrimEnd('/');
-        var badgeUrl = $"{baseUrl}/api/v1/badges/{username}.svg";
-        var badgeUrlLight = $"{badgeUrl}?theme=light";
+        var badgeUrl = $"{baseUrl}/api/v1/badges/{username}.svg?lang={code}";
+        var badgeUrlLight = $"{baseUrl}/api/v1/badges/{username}.svg?theme=light&lang={code}";
         var profileUrl = $"https://github.com/{username}";
 
         return Ok(new BadgeSnippetsDto(

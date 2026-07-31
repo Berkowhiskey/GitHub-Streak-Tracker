@@ -1,30 +1,34 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { API_BASE_URL } from "@/lib/api";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { GitHubIcon, FlameIcon } from "@/components/icons";
+import { LanguageSwitcher } from "@/components/language-switcher";
+import { LOCALE_COOKIE, getDictionary, resolveInitialLocale } from "@/lib/i18n";
 
-/** Callback hatalarinin kullaniciya gosterilecek karsiliklari. */
-const ERROR_MESSAGES: Record<string, string> = {
-  access_denied:
-    "GitHub izni verilmedi. Devam etmek icin yetkilendirmeyi onaylaman gerekiyor.",
-  missing_code: "GitHub'dan beklenen yanit alinamadi. Lutfen tekrar dene.",
-  invalid_state:
-    "Guvenlik dogrulamasi basarisiz oldu. Lutfen girisi bastan baslat.",
-};
-
-// Next.js 16'da searchParams bir Promise'tir ve await edilmelidir.
+// Next.js 16'da searchParams ve cookies asenkrondur.
 export default async function HomePage({
   searchParams,
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
-  const { error } = await searchParams;
-  const errorMessage = error ? (ERROR_MESSAGES[error] ?? null) : null;
+  const [{ error }, cookieStore] = await Promise.all([searchParams, cookies()]);
+
+  const locale = resolveInitialLocale(cookieStore.get(LOCALE_COOKIE)?.value);
+  const t = getDictionary(locale);
+
+  const errorMessage = error
+    ? (t.landing.errors[error as keyof typeof t.landing.errors] ?? null)
+    : null;
 
   return (
     <main className="flex flex-1 flex-col items-center justify-center px-6 py-16">
       <div className="w-full max-w-3xl space-y-12">
+        <div className="flex justify-end">
+          <LanguageSwitcher />
+        </div>
+
         {errorMessage && (
           <div
             role="alert"
@@ -40,13 +44,11 @@ export default async function HomePage({
           </div>
 
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
-            Serini kaybetme.
+            {t.landing.title}
           </h1>
 
           <p className="mx-auto max-w-xl text-lg text-muted-foreground">
-            GitHub commit serini takip ediyoruz. Gun bitmeden commit atmadiysan
-            telefonuna bildirim gonderiyoruz — hem de GitHub&apos;in kendi mobil
-            uygulamasi uzerinden.
+            {t.landing.subtitle}
           </p>
 
           <div className="flex flex-col items-center gap-3 pt-2">
@@ -56,34 +58,31 @@ export default async function HomePage({
               className={cn(buttonVariants({ size: "lg" }), "h-11 gap-2 px-6 text-base")}
             >
               <GitHubIcon className="h-5 w-5" />
-              GitHub ile Giris Yap
+              {t.landing.loginButton}
             </a>
 
-            <p className="text-xs text-muted-foreground">
-              Giris yaptiginda hesabinda hicbir sey olusturulmaz. Kurulum,
-              bilgilendirme metnini okuyup onayladiktan sonra baslar.
-            </p>
+            <p className="text-xs text-muted-foreground">{t.landing.loginNote}</p>
           </div>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-3">
           <FeatureCard
-            title="Telefonuna bildirim"
-            description="Serin tehlikedeyse GitHub Mobile uzerinden aninda push bildirimi alirsin. Ekstra uygulama kurmana gerek yok."
+            title={t.landing.features.notification.title}
+            description={t.landing.features.notification.description}
           />
           <FeatureCard
-            title="Dinamik rozet"
-            description="Profil README'ne ekleyebilecegin, her zaman guncel ve hizli calisan bir streak rozeti uretiriz."
+            title={t.landing.features.badge.title}
+            description={t.landing.features.badge.description}
           />
           <FeatureCard
-            title="Sen kontrol edersin"
-            description="Bildirim saatini secersin, istedigin an durdurursun, hesabini tek tikla silersin."
+            title={t.landing.features.control.title}
+            description={t.landing.features.control.description}
           />
         </div>
 
         <footer className="border-t pt-6 text-center text-xs text-muted-foreground">
           <Link href="/gizlilik" className="underline underline-offset-4">
-            Hangi izinleri neden istiyoruz?
+            {t.landing.privacyLink}
           </Link>
         </footer>
       </div>

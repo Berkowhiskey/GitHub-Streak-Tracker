@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using StreakTracker.API.Entities;
+using StreakTracker.API.Enums;
 
 namespace StreakTracker.API.Data.Configurations;
 
@@ -33,8 +34,21 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.PrivateNotificationRepoName)
             .HasMaxLength(100);
 
-        builder.Property(u => u.PreferredNotificationHourUtc)
+        builder.Property(u => u.PreferredNotificationHour)
             .HasDefaultValue(20);
+
+        // IANA saat dilimi kimligi (orn. "America/Argentina/ComodRivadavia" en uzunlarindan).
+        builder.Property(u => u.TimeZoneId)
+            .IsRequired()
+            .HasMaxLength(64)
+            .HasDefaultValue("UTC");
+
+        // Enum metin olarak saklanir; veritabani dogrudan incelendiginde okunur kalir.
+        builder.Property(u => u.Language)
+            .IsRequired()
+            .HasConversion<string>()
+            .HasMaxLength(10)
+            .HasDefaultValue(AppLanguage.Turkish);
 
         builder.Property(u => u.IsActive)
             .HasDefaultValue(true);
@@ -50,8 +64,9 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.HasIndex(u => u.GitHubUsername)
             .IsUnique();
 
-        // Bildirim job'u "su saatte bildirim alacak aktif kullanicilar" sorgusunu bu index ile ceker.
-        builder.HasIndex(u => new { u.IsActive, u.PreferredNotificationHourUtc });
+        // Bildirim job'u once aktif kullanicilari ceker; saat eslesmesi saat dilimi
+        // basina degistigi icin (DST) bellekte yapilir.
+        builder.HasIndex(u => new { u.IsActive, u.PreferredNotificationHour });
 
         builder.HasOne(u => u.Streak)
             .WithOne(s => s.User)

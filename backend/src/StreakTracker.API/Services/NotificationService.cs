@@ -31,17 +31,27 @@ public class NotificationService : INotificationService
         int utcHour,
         CancellationToken cancellationToken = default)
     {
-        var userIds = await _dbContext.Users
+        // Bildirim saati artik kullanicinin KENDI saat diliminde tutuluyor. Yaz/kis
+        // saati uygulamalari yuzunden UTC ofseti sabit olmadigindan eslesme SQL'de
+        // yapilamaz; once aday kullanicilar cekilip saat karsilastirmasi bellekte yapilir.
+        var candidates = await _dbContext.Users
             .Where(u => u.IsActive
                         && u.HasAcceptedTerms
-                        && u.NotificationIssueNumber != null
-                        && u.PreferredNotificationHourUtc == utcHour)
-            .Select(u => u.Id)
+                        && u.NotificationIssueNumber != null)
+            .Select(u => new { u.Id, u.PreferredNotificationHour, u.TimeZoneId })
             .ToListAsync(cancellationToken);
 
+        var utcNow = DateTime.UtcNow;
+
+        var userIds = candidates
+            .Where(u => UserClock.CurrentHourIn(UserClock.Resolve(u.TimeZoneId), utcNow)
+                        == u.PreferredNotificationHour)
+            .Select(u => u.Id)
+            .ToList();
+
         _logger.LogInformation(
-            "Saatlik bildirim turu basladi. Saat: {Hour}:00 UTC, Kullanici sayisi: {Count}",
-            utcHour, userIds.Count);
+            "Saatlik bildirim turu basladi. Saat: {Hour}:00 UTC, Aday: {Candidates}, Eslesen: {Count}",
+            utcHour, candidates.Count, userIds.Count);
 
         var sent = 0;
         var failures = 0;
@@ -87,6 +97,21 @@ public class NotificationService : INotificationService
         // kullanici bildirim saatinden hemen once commit atmis olabilir.
         var streak = await _streakService.UpdateUserStreakAsync(user.Id, cancellationToken);
 
+        // Once kutlama: bir kilometre tasina ulasildiysa uyari yerine tebrik gonderilir.
+        if (NotificationMessageBuilder.IsMilestone(streak.CurrentStreak) &&
+            !await HasMilestoneBeenCelebratedAsync(user, streak.CurrentStreak, cancellationToken))
+        {
+            var celebration = NotificationMessageBuilder.BuildMilestone(
+                user.GitHubUsername, streak.CurrentStreak, streak.LongestStreak, user.Language);
+
+            _logger.LogInformation(
+                "{Username} {Milestone} gunluk kilometre tasina ulasti.",
+                user.GitHubUsername, streak.CurrentStreak);
+
+            return await DispatchAsync(
+                user, celebration, isTest: false, milestoneDay: streak.CurrentStreak, cancellationToken);
+        }
+
         if (streak.HasCommittedToday)
         {
             _logger.LogInformation(
@@ -95,7 +120,7 @@ public class NotificationService : INotificationService
             return NotificationResult.Skipped("Bugun commit atilmis, serin guvende.");
         }
 
-        if (await HasBeenNotifiedTodayAsync(user.Id, cancellationToken))
+        if (await HasBeenNotifiedTodayAsync(user, cancellationToken))
         {
             _logger.LogInformation(
                 "{Username} icin bugun zaten bildirim gonderilmis, tekrar gonderilmedi.", user.GitHubUsername);
@@ -103,12 +128,12 @@ public class NotificationService : INotificationService
             return NotificationResult.Skipped("Bugun zaten bildirim gonderilmis.");
         }
 
-        var hoursLeft = 24 - DateTime.UtcNow.Hour;
+        var hoursLeft = UserClock.HoursLeftInDay(UserClock.Resolve(user.TimeZoneId));
 
         var message = NotificationMessageBuilder.BuildStreakWarning(
-            user.GitHubUsername, streak.CurrentStreak, streak.LongestStreak, hoursLeft);
+            user.GitHubUsername, streak.CurrentStreak, streak.LongestStreak, hoursLeft, user.Language);
 
-        return await DispatchAsync(user, message, isTest: false, cancellationToken);
+        return await DispatchAsync(user, message, isTest: false, milestoneDay: null, cancellationToken);
     }
 
     public async Task<NotificationResult> SendTestNotificationAsync(
@@ -128,9 +153,9 @@ public class NotificationService : INotificationService
         var streak = await _streakService.UpdateUserStreakAsync(user.Id, cancellationToken);
 
         var message = NotificationMessageBuilder.BuildTestNotification(
-            user.GitHubUsername, streak.CurrentStreak, streak.HasCommittedToday);
+            user.GitHubUsername, streak.CurrentStreak, streak.HasCommittedToday, user.Language);
 
-        return await DispatchAsync(user, message, isTest: true, cancellationToken);
+        return await DispatchAsync(user, message, isTest: true, milestoneDay: null, cancellationToken);
     }
 
     // -----------------------------------------------------------------------
@@ -165,18 +190,47 @@ public class NotificationService : INotificationService
     }
 
     /// <summary>
-    /// Bugun (UTC) bu kullaniciya basarili bir gercek bildirim gonderilmis mi?
+    /// Bu kullaniciya <b>kendi gununde</b> basarili bir gercek bildirim gonderilmis mi?
+    /// Gun siniri kullanicinin saat dilimine gore belirlenir; UTC gunu kullanilsaydi
+    /// saat farki olan kullanicilar gunde iki kez uyarilabilirdi.
     /// Test bildirimleri sayilmaz; test gondermek gunun gercek uyarisini engellememelidir.
     /// </summary>
-    private Task<bool> HasBeenNotifiedTodayAsync(Guid userId, CancellationToken cancellationToken)
+    private Task<bool> HasBeenNotifiedTodayAsync(User user, CancellationToken cancellationToken)
     {
-        var todayStart = DateTime.UtcNow.Date;
+        var todayStartUtc = UserClock.StartOfTodayUtc(UserClock.Resolve(user.TimeZoneId));
 
         return _dbContext.NotificationLogs.AnyAsync(
-            n => n.UserId == userId
+            n => n.UserId == user.Id
                  && n.IsSuccess
                  && !n.IsTest
-                 && n.SentAt >= todayStart,
+                 && n.SentAt >= todayStartUtc,
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// Bu kilometre tasi, <b>icinde bulunulan seri boyunca</b> zaten kutlandi mi?
+    /// <para>
+    /// Kontrol serinin baslangicina gore yapilir: kullanici 7 gune ulasip seriyi
+    /// kirar ve yeniden 7 gune ulasirsa bu YENI bir basaridir ve tekrar kutlanmalidir.
+    /// Yalnizca "hic kutlandi mi" diye bakilsaydi ikinci basari sessiz gecerdi.
+    /// </para>
+    /// </summary>
+    private Task<bool> HasMilestoneBeenCelebratedAsync(
+        User user,
+        int milestone,
+        CancellationToken cancellationToken)
+    {
+        var timeZone = UserClock.Resolve(user.TimeZoneId);
+
+        // Mevcut serinin ilk gununun baslangici (bugun de seriye dahil oldugu icin -1).
+        var streakStartUtc = UserClock.StartOfTodayUtc(timeZone).AddDays(-(milestone - 1));
+
+        return _dbContext.NotificationLogs.AnyAsync(
+            n => n.UserId == user.Id
+                 && n.IsSuccess
+                 && !n.IsTest
+                 && n.MilestoneDay == milestone
+                 && n.SentAt >= streakStartUtc,
             cancellationToken);
     }
 
@@ -210,6 +264,7 @@ public class NotificationService : INotificationService
         User user,
         string message,
         bool isTest,
+        int? milestoneDay,
         CancellationToken cancellationToken)
     {
         if (!_gitHubAppService.IsConfigured)
@@ -235,6 +290,7 @@ public class NotificationService : INotificationService
             Channel = NotificationChannel.GitHubIssue,
             Message = message,
             IsTest = isTest,
+            MilestoneDay = milestoneDay,
             SentAt = DateTime.UtcNow
         };
 

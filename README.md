@@ -8,6 +8,8 @@ GitHub commit serini takip eder, seri bozulmak üzereyken **GitHub Mobile üzeri
 ![GitHub Streak](https://api.streak-tracker.me/api/v1/badges/KULLANICI_ADIN.svg)
 ```
 
+Rozet `?theme=light` ve `?lang=en` parametrelerini destekler. Dil verilmezse hesabındaki tercih kullanılır.
+
 Projenin tam mimarisi, fazları ve ayrıntılı ilerleme günlüğü: [CLAUDE.md](CLAUDE.md)
 
 ---
@@ -21,6 +23,8 @@ Projenin tam mimarisi, fazları ve ayrıntılı ilerleme günlüğü: [CLAUDE.md
 **2. Kesintisiz rozet.** Rozet doğrudan veritabanından render edilir, istek anında GitHub API'sine **hiç gidilmez**. Bu yüzden rate-limit'e takılmaz; GitHub yavaşlasa bile rozet çalışır.
 
 **3. Şeffaf onboarding.** Onay verilmeden hesabında hiçbir şey oluşturulmaz. Access token veritabanında şifreli tutulur, panelden tek tıkla tüm veriler silinebilir.
+
+**4. Senin saatin, senin dilin.** Bildirim saati kendi saat diliminde saklanır — yaz/kış saati değişse bile seçtiğin saatte uyarılırsın. Arayüz, bildirimler ve rozet **Türkçe ve İngilizce** çalışır.
 
 ---
 
@@ -66,7 +70,7 @@ cd frontend && npm install && npm run dev
 
 ### Testler
 ```bash
-dotnet test backend/StreakTracker.sln     # 29 test
+dotnet test backend/StreakTracker.sln     # 58 test
 cd frontend && npx tsc --noEmit           # tip kontrolü
 ```
 
@@ -124,12 +128,10 @@ git pull && docker compose -f docker-compose.prod.yml up -d --build
 
 ## Yol Haritası
 
-**Yapıldı:** GitHub OAuth + onboarding · streak hesaplama (GraphQL) · GitHub App ile bot bildirimleri · saatlik `StreakCheckJob` · dinamik SVG rozet (ETag/cache) · Next.js dashboard (heatmap, rozet kopyalama, bildirim ayarları) · token şifreleme · KVKK silme hakkı · production deploy
+**Yapıldı:** GitHub OAuth + onboarding · streak hesaplama (GraphQL) · GitHub App ile bot bildirimleri · saatlik `StreakCheckJob` · dinamik SVG rozet (ETag/cache) · Next.js dashboard (heatmap, rozet kopyalama, bildirim ayarları) · token şifreleme · KVKK silme hakkı · production deploy · **saat dilimi desteği** (IANA, DST'ye dayanıklı) · **milestone bildirimleri** (7/30/100/365) · **Türkçe + İngilizce dil desteği** (arayüz, bildirimler, rozet)
 
 **Sırada:**
-- [ ] **Zaman dilimi desteği** — şu an her şey UTC; kullanıcının yerel gününe göre streak ve "gün bitmesine X saat" hesabı
 - [ ] **Telegram / e-posta fallback** — `NotificationChannel` enum'ında yer var, uygulanmadı
-- [ ] **Milestone bildirimleri** — 7/30/100/365 günlük seri kutlamaları
 - [ ] **Streak dondurma** — tatil/hastalık için seri koruma hakkı
 - [ ] **Haftalık özet** — pazar günü "bu hafta 5/7 gün" raporu
 - [ ] **Public profil sayfası** (`/u/{username}`) ve leaderboard
@@ -148,6 +150,7 @@ GitLingo/
 │   ├── src/StreakTracker.API/
 │   │   ├── Controllers/     Auth · Onboarding · Users · Streaks · Notifications · Badge
 │   │   ├── Services/        GitHub · GitHubApp · Streak · Notification · SvgBadge · Auth
+│   │   │                    UserClock (saat dilimi) · StreakCalculator · NotificationMessageBuilder
 │   │   ├── Jobs/            StreakCheckJob (saatlik)
 │   │   ├── Data/            AppDbContext · Configurations · Migrations
 │   │   └── Entities/        User · Streak · NotificationLog
@@ -155,6 +158,8 @@ GitLingo/
 ├── frontend/                Next.js (App Router)
 │   ├── app/                 landing · onboarding · dashboard · gizlilik
 │   ├── components/          heatmap · copy-field · app-install-notice · icons
+│   │                        language-provider · language-switcher
+│   ├── lib/i18n.ts          tr/en sözlükleri (tr şema görevi görür)
 │   └── lib/api.ts           backend DTO'larıyla eşleşen istemci
 ├── docker-compose.yml       geliştirme (PostgreSQL)
 ├── docker-compose.prod.yml  production (api + caddy)

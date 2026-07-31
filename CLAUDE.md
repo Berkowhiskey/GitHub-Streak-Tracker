@@ -417,3 +417,67 @@ Oracle Cloud Always Free (süresiz) + Supabase (ücretsiz katman) + Vercel (ücr
 
 Zaman dilimi desteği · Telegram/e-posta fallback · Milestone bildirimleri · Streak dondurma · Haftalık özet · Leaderboard · Public profil sayfası · Rozet çeşitleri · `NotificationService` / `GitHubAppService` birim testleri
 
+---
+
+#### 🔹 FAZ 9 — MVP Sonrası: Saat Dilimi · Milestone · İngilizce Dil Desteği
+
+> **Tespit edilen dört eksik:** bot avatarının yanlış görünmesi, her şeyin UTC olması, ürünün tamamen Türkçe olması ve hiç kutlama bildirimi bulunmaması. Kullanıcının ek testleri de bu turda tamamlandı.
+
+* **31 Temmuz 2026, 09:15** - ✅ **ÇOK KULLANICILI AKIŞ DOĞRULANDI (Test 5).** Kullanıcı, bir arkadaşının hesabı ve kendi yedek hesabıyla kayıt oldu; her iki hesapta da test bildirimleri ve heatmap doğru çalıştı. Sistem artık tek kullanıcı varsayımından çıktı.
+* **31 Temmuz 2026, 09:30** - 🐞 **Bot avatarı tespiti.** Bildirimleri atan `streaktracker-notify[bot]`, kullanıcının kendi profil fotoğrafıyla görünüyordu. **Kök neden:** GitHub App'e logo yüklenmediğinde App **sahibinin avatarı** kullanılıyor. Kod hatası değil, yapılandırma eksiği — App ayarlarından logo yüklenerek çözülüyor (Aşama A, kullanıcıda).
+* **31 Temmuz 2026, 10:20** - **[Aşama B] Saat dilimi desteği.**
+  * `User.TimeZoneId` (IANA, varsayılan `UTC`) eklendi; `PreferredNotificationHourUtc` → **`PreferredNotificationHour`** olarak yeniden adlandırıldı ve artık *kullanıcının yerel saati* anlamına geliyor.
+  * **Geriye dönük uyumluluk:** Migration yalnızca RENAME yapıyor ve `TimeZoneId` varsayılanı `UTC` olduğu için mevcut kayıtların davranışı **birebir korunuyor**. Doğrulandı: mevcut kullanıcının saati 20 olarak, TZ `UTC` olarak kaldı.
+  * **Neden UTC'de saklamıyoruz:** Kullanıcı "20:00'da uyar" dediğinde yaz/kış saati değişse bile 20:00'da uyarılmalı. UTC'de saklamak DST geçişlerinde bir saatlik kaymaya yol açardı.
+  * `Services/UserClock.cs` yazıldı — saf ve test edilebilir: `TodayIn`, `CurrentHourIn`, `HoursLeftInDay`, `StartOfTodayUtc`. Tanınmayan saat dilimi UTC'ye düşer (bildirimleri tamamen durdurmaktansa güvenli varsayılan).
+  * `StreakService` ("bugün"), `NotificationService` (kalan saat, mükerrer kontrolü) ve saatlik job güncellendi. **Job artık SQL'de saat filtresi yapamıyor** — DST nedeniyle UTC ofseti sabit olmadığı için aday kullanıcılar çekilip eşleştirme bellekte yapılıyor.
+  * ⚠️ **Dockerfile'a `tzdata` eklendi.** `TimeZoneInfo.FindSystemTimeZoneById` Linux'ta bu paket olmadan çalışmaz ve eksikliği ancak çalışma anında fark edilirdi.
+  * **9 yeni test:** gece yarısı senaryosu (Türkiye'de 01:00 iken UTC'de hâlâ dün), batı yarıküre, DST geçişi (New York kış/yaz), UTC kullanıcılarının davranışının değişmediği.
+* **31 Temmuz 2026, 11:05** - **[Aşama C] Milestone bildirimleri (7 / 30 / 100 / 365).**
+  * `NotificationLog.MilestoneDay` (`int?`) eklendi; kutlama bildirimleri uyarılardan ayrışıyor.
+  * **Akış değişikliği:** streak tazelendikten sonra önce milestone kontrol edilir; ulaşıldıysa uyarı yerine **kutlama** gönderilir.
+  * **İnce nokta:** Mükerrer kontrolü "hiç kutlandı mı" değil, **mevcut serinin başlangıcından sonra kutlandı mı** diye bakıyor. Böylece seri kırılıp yeniden 7 güne ulaşılırsa bu yeni başarı tekrar kutlanıyor.
+  * Kutlama mesajı bir şey yapmasını istemez, yalnızca tebrik eder; rekor kırıldıysa ayrıca belirtir.
+* **31 Temmuz 2026, 12:30** - **[Aşama D] İngilizce dil desteği — arayüz + bildirimler + rozet.**
+  * **Backend:** `Enums/AppLanguage.cs`, `User.Language` (DB'de metin olarak), `NotificationMessageBuilder`'ın üç metodu da iki dilli, `SvgBadgeService` etiket/tarih biçimi dile göre.
+  * **Rozet:** `?lang=en` parametresi; verilmezse kullanıcının kayıtlı tercihi kullanılır. Böylece README'ye İngilizce rozet konabilirken kullanıcının kendi dili korunur.
+  * ⚠️ **`ComputeETag`'e dil dahil edildi** — aksi halde kullanıcı dilini değiştirdiğinde tarayıcı önbellekteki eski dildeki rozeti göstermeye devam ederdi. Testle sabitlendi.
+  * **Frontend:** `lib/i18n.ts` (tr/en sözlükleri), `LanguageProvider` + `LanguageSwitcher`. Tercih **çerezde** saklanıyor; böylece sunucu bileşenleri de okuyabiliyor ve sayfa doğru dille render ediliyor (dil yanıp sönmesi yok). Tüm sayfalar ve bileşenler çevrildi.
+  * **Tip güvenliği:** Türkçe sözlük şema görevi görüyor; İngilizce sözlükte eksik veya fazla anahtar **derleme hatası** veriyor. (`as const` bilinçli olarak kullanılmadı — literal tipler İngilizce metinleri reddederdi.)
+* **31 Temmuz 2026, 12:48** - **FAZ 9 KOD TARAFI TAMAMLANDI ✅**
+  * `dotnet build` → **0 warning / 0 error**, `dotnet test` → **58/58 passed** (29 → 58, 29 yeni test)
+  * Frontend `tsc --noEmit` → hatasız, `npm run build` → başarılı
+  * Rozet doğrulaması: varsayılan Türkçe, `?lang=en` İngilizce, **ETag'ler farklı** (`a2a133e4…` / `5761f782…`), bulunamadı rozeti de iki dilli
+  * 3 migration üretildi ve yerel veritabanına uygulandı: `AddUserTimeZone`, `AddMilestoneToNotificationLog`, `AddUserLanguage`
+* **31 Temmuz 2026, 13:05** - ✅ **KVKK SİLME HAKKI CANLI DOĞRULANDI (Test 6).** Kullanıcı, yedek GitHub hesabını panelden "Hesabımı sil" ile sildi; production veritabanı (Supabase) uzaktan sorgulanarak kontrol edildi.
+  * **Yöntem:** Sunucuda `psql` kurulu olmadığı için tek seferlik `postgres:16-alpine` container'ı ile bağlanıldı; kimlik bilgileri `.env`'den okundu, hiçbir yere yazılmadı.
+  * **Sonuç:** `users` = 2 (yalnızca `Berkowhiskey` + `yunopo42`), silinen hesap tabloda **yok**. `streaks` = 2, `notification_logs` = 4 — **sahipsiz (orphan) kayıt 0**.
+  * **Cascade doğrulandı:** `FK_streaks_users_UserId` ve `FK_notification_logs_users_UserId` → `delete_rule = CASCADE`. Kullanıcı silinince streak ve bildirim logları da gidiyor; arkada veri artığı kalmıyor.
+  * Tasarım gereği GitHub hesabındaki `.streak-tracker-notifications` reposu **silinmiyor** — ona yalnızca kullanıcı karar verebilir, API yanıtında bu açıkça bildiriliyor.
+  * ℹ️ Sunucuda ileride DB kontrolü için `postgres:16-alpine` imajı bırakıldı (~80 MB; disk 38 GB boş).
+* **31 Temmuz 2026, 13:20** - 🎉 **SON İKİ AÇIK TEST DE KAPANDI — SİSTEM UÇTAN UCA OTONOM ÇALIŞIYOR**
+  * ✅ **Test 4 — Zamanlanmış job kendiliğinden çalıştı.** Kullanıcı o gün bilinçli olarak commit atmadı; `StreakCheckJob` **hiçbir insan müdahalesi olmadan** tetiklendi, streak'i GitHub'dan tazeledi, bugün commit olmadığını gördü ve uyarı bildirimini telefona düşürdü.
+    * **Önemi:** Bugüne kadar tüm bildirimler elle (`/notifications/test` veya `/check-now`) tetiklenmişti. Projenin asıl vaadi olan *"sen unutsan bile ben hatırlatırım"* zinciri — Hangfire recurring job → streak tazeleme → karar mantığı → GitHub App bot yorumu → GitHub Mobile push — ilk kez baştan sona kendi kendine çalıştı.
+  * ✅ **Test 5 — Çok kullanıcılı akış genişletildi.** İki arkadaş hesabında daha kayıt, onboarding ve bildirim akışı sorunsuz çalıştı. Sistem artık toplam **4 farklı GitHub hesabıyla** doğrulanmış durumda; tek kullanıcı varsayımı tamamen kalktı.
+  * **Sonuç:** MVP'nin "henüz denenmemiş" listesi **boşaldı**. Geriye yalnızca Faz 9'un canlıya alınması kaldı.
+* **31 Temmuz 2026, 13:45** - 🐞 **Çözülen Hata (asistan kaynaklı): `resolveInitialLocale` sunucudan çağrılamıyordu.**
+  * **Belirti:** Lokal ortamda sayfa açılırken `Runtime Error — Attempted to call resolveInitialLocale() from the server but resolveInitialLocale is on the client.`
+  * **Kök neden:** Fonksiyon saf (yan etkisiz) olmasına rağmen `"use client"` işaretli `components/language-provider.tsx` içinde tanımlanmıştı. Next.js o dosyadaki **tüm** export'ları istemci bundle'ının parçası sayar; sunucu bileşenleri yalnızca bileşen olarak render edebilir, fonksiyon olarak çağıramaz.
+  * **Neden build'de yakalanmadı:** `tsc` ve `npm run build` bu sınırı doğrulamıyor; hata ancak sunucu bileşeni gerçekten render edilirken ortaya çıkıyor. **Ders:** i18n gibi sunucu/istemci sınırında duran kod için build yeşil olması yeterli kanıt değil, sayfayı fiilen istemek gerekiyor.
+  * **Düzeltme:** Fonksiyon direktifi olmayan `lib/i18n.ts`'e taşındı (`isLocale` ve `DEFAULT_LOCALE` zaten orada). Etkilenen üç sunucu bileşeninin (`app/layout.tsx`, `app/page.tsx`, `app/gizlilik/page.tsx`) import'ları güncellendi.
+* **31 Temmuz 2026, 13:55** - **Dil desteğinin eksik parçası tamamlandı: sayfa başlıkları (`<title>`).**
+  * **Tespit:** Gövde metinleri İngilizceye çevriliyordu ama sekme başlığı ve link önizlemesi her iki dilde de Türkçe kalıyordu — `export const metadata` **sabit** bir nesne olduğu için çerezi okuyamıyor.
+  * **Düzeltme:** `layout.tsx` ve `gizlilik/page.tsx`'te `metadata` → **`generateMetadata()`** (async) yapıldı; çerezden dil okunup sözlükten üretiliyor. Sözlüğe `meta` bölümü eklendi (`siteTitle`, `siteDescription`, `privacyTitle`).
+  * **Doğrulama (çalışan dev sunucusuna istek atarak):** `<html lang>` çerezle `tr`↔`en` değişiyor · gizlilik başlığı TR `Izinler ve Gizlilik` / EN `Permissions and Privacy` · sekme başlıkları da dile göre üretiliyor · `npx tsc --noEmit` hatasız.
+* **31 Temmuz 2026, 14:20** - 🔍 **"Rozet ve bildirim İngilizceye geçmiyor" şikâyeti incelendi — ikisi de kod hatası değildi, ama araştırma gerçek bir kusuru açığa çıkardı.**
+  * **Bildirim (hata yok, sıralama):** `notification_logs` ve `users.UpdatedAt` karşılaştırıldı → test bildirimi **11:01:57**'de gönderilmiş, dil **11:03:04**'te İngilizce yapılmış. Yani bildirim atıldığında tercih hâlâ Türkçeydi; sistem doğru davranmış.
+  * **Rozet (hata yok, önbellek):** Lokal API `curl` ile sorgulandığında **İngilizce** dönüyordu (`day streak`, `RECORD`); production ise Türkçe — çünkü Faz 9 henüz deploy edilmedi. Tarayıcıda Türkçe görünmesinin sebebi `Cache-Control: public, max-age=300`.
+  * 🐞 **Ortaya çıkan gerçek kusur:** **Rozet URL'inde dil bilgisi yoktu.** `ComputeETag`'e dili eklemek bunu çözmüyor — ETag yalnızca tarayıcı *sorduğunda* devreye girer, `max-age` dolmadan istek hiç atılmaz. Daha ağırı: README'ye kopyalanan kodda da dil yoktu ve GitHub rozetleri kendi **camo proxy**'si üzerinden çok daha uzun süre önbelleklediği için, kullanıcı dilini değiştirse bile profilindeki rozet uzun süre eski dilde kalırdı.
+  * **Düzeltme — dil artık URL'in parçası:**
+    * `GET /users/me/badge` **`?lang=` parametresi** alıyor; verilmezse kullanıcının kayıtlı tercihi kullanılıyor. Üretilen Markdown/HTML kodları artık `?lang=tr|en` içeriyor.
+    * **Neden parametre:** Arayüz hangi dili istediğini zaten biliyor. Yalnızca DB'deki tercihe bakılsaydı, dil değiştirildikten hemen sonra kod parçacığı istendiğinde `PATCH /preferences` henüz tamamlanmamış olabilir ve **eski dil dönerdi** (yarış durumu).
+    * Dashboard'daki rozet önizlemesi `?lang=${locale}` ile isteniyor → adres değiştiği için tarayıcı önbelleği devreye girmiyor, dil değişimi **anında** yansıyor.
+    * Dil değişince kod parçacıkları yeniden üretiliyor (yalnızca onlar; takvim GitHub'a gittiği için sayfanın tamamı yeniden yüklenmiyor).
+  * **Doğrulama:** `dotnet build` → **0 warning / 0 error**, `dotnet test` → **58/58 passed**, frontend `tsc --noEmit` → hatasız.
+  * ℹ️ **Not:** Çalışan `dotnet run` süreci `bin/`'i kilitlediği için build geçici bir çıktı dizinine alındı (`-p:BaseOutputPath`); kullanıcının ortamına dokunulmadı.
+

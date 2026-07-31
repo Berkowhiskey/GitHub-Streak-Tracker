@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   api,
@@ -13,15 +13,24 @@ import {
   type StreakStatus,
 } from "@/lib/api";
 import { AppInstallNotice } from "@/components/app-install-notice";
+import { useLanguage } from "@/components/language-provider";
+import { LanguageSwitcher } from "@/components/language-switcher";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FlameIcon } from "@/components/icons";
 import { ContributionHeatmap } from "@/components/contribution-heatmap";
 import { CopyField } from "@/components/copy-field";
-import { HOUR_OPTIONS } from "@/lib/hours";
+import {
+  HOUR_OPTIONS,
+  currentTimeIn,
+  detectTimeZone,
+  formatUtcOffset,
+  listTimeZones,
+} from "@/lib/hours";
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { t, locale } = useLanguage();
 
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [streak, setStreak] = useState<StreakStatus | null>(null);
@@ -51,7 +60,7 @@ export default function DashboardPage() {
       const [streakData, calendarData, badgeData, appStatusData] = await Promise.all([
         api.getStreak(),
         api.getCalendar().catch(() => [] as CalendarDay[]),
-        api.getBadgeSnippets(),
+        api.getBadgeSnippets(locale),
         // App kurulumu sorgulanamazsa panel yine de acilmali.
         api.getAppStatus().catch(() => null),
       ]);
@@ -67,7 +76,7 @@ export default function DashboardPage() {
         return;
       }
 
-      setError(err instanceof ApiError ? err.message : "Veriler yuklenemedi.");
+      setError(err instanceof ApiError ? err.message : t.dashboard.loadError);
       setLoading(false);
     }
   }, [router]);
@@ -75,6 +84,18 @@ export default function DashboardPage() {
   useEffect(() => {
     loadAll();
   }, [loadAll]);
+
+  // Dil degisince README kod parcaciklari yeni dile gore yeniden uretilmeli.
+  // Yalnizca kod parcaciklari tazeleniyor; takvim GitHub'a gittigi icin
+  // sayfanin tamamini yeniden yuklemek gereksiz yavaslik olurdu.
+  const snippetLocale = useRef(locale);
+
+  useEffect(() => {
+    if (snippetLocale.current === locale) return;
+
+    snippetLocale.current = locale;
+    api.getBadgeSnippets(locale).then(setBadges).catch(() => {});
+  }, [locale]);
 
   async function run(key: string, action: () => Promise<string | null>) {
     setBusy(key);
@@ -85,7 +106,7 @@ export default function DashboardPage() {
       const result = await action();
       if (result) setMessage(result);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Islem tamamlanamadi.");
+      setError(err instanceof ApiError ? err.message : t.dashboard.actionError);
     } finally {
       setBusy(null);
     }
@@ -94,7 +115,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <main className="flex flex-1 items-center justify-center">
-        <p className="text-sm text-muted-foreground">Yukleniyor…</p>
+        <p className="text-sm text-muted-foreground">{t.common.loading}</p>
       </main>
     );
   }
@@ -114,19 +135,22 @@ export default function DashboardPage() {
           )}
           <div>
             <p className="font-semibold">{user?.gitHubUsername}</p>
-            <p className="text-xs text-muted-foreground">StreakTracker paneli</p>
+            <p className="text-xs text-muted-foreground">{t.dashboard.panelSubtitle}</p>
           </div>
         </div>
 
-        <Button
-          variant="ghost"
-          onClick={async () => {
-            await api.logout().catch(() => {});
-            router.push("/");
-          }}
-        >
-          Cikis yap
-        </Button>
+        <div className="flex items-center gap-2">
+          <LanguageSwitcher />
+          <Button
+            variant="ghost"
+            onClick={async () => {
+              await api.logout().catch(() => {});
+              router.push("/");
+            }}
+          >
+            {t.common.logout}
+          </Button>
+        </div>
       </header>
 
       {appStatus && (
@@ -134,7 +158,7 @@ export default function DashboardPage() {
           status={appStatus}
           onInstalled={() => {
             setAppStatus({ ...appStatus, installed: true });
-            setMessage("GitHub App kurulumu dogrulandi. Bildirimler artik calisiyor.");
+            setMessage(t.appInstall.verified);
           }}
         />
       )}
@@ -157,7 +181,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Guncel seri
+              {t.dashboard.currentStreak}
             </CardTitle>
           </CardHeader>
           <CardContent className="flex items-center gap-3">
@@ -167,7 +191,7 @@ export default function DashboardPage() {
             />
             <div>
               <p className="text-3xl font-bold">{streak?.currentStreak ?? 0}</p>
-              <p className="text-xs text-muted-foreground">gun</p>
+              <p className="text-xs text-muted-foreground">{t.dashboard.days}</p>
             </div>
           </CardContent>
         </Card>
@@ -175,19 +199,19 @@ export default function DashboardPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Rekor
+              {t.dashboard.record}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold">{streak?.longestStreak ?? 0}</p>
-            <p className="text-xs text-muted-foreground">gun</p>
+            <p className="text-xs text-muted-foreground">{t.dashboard.days}</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Bugun
+              {t.dashboard.today}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -196,12 +220,12 @@ export default function DashboardPage() {
                 streak?.hasCommittedToday ? "text-emerald-500" : "text-amber-500"
               }`}
             >
-              {streak?.hasCommittedToday ? "Commit atildi" : "Henuz commit yok"}
+              {streak?.hasCommittedToday ? t.dashboard.committed : t.dashboard.notCommitted}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               {streak?.hasCommittedToday
-                ? "Serin bugunluk guvende."
-                : "Gun bitmeden bir commit at, serini koru."}
+                ? t.dashboard.committedNote
+                : t.dashboard.notCommittedNote}
             </p>
           </CardContent>
         </Card>
@@ -210,7 +234,7 @@ export default function DashboardPage() {
       {/* --- Heatmap --- */}
       <Card className="mb-8">
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Katki takvimi</CardTitle>
+          <CardTitle>{t.dashboard.calendar}</CardTitle>
           <Button
             variant="outline"
             size="sm"
@@ -223,11 +247,11 @@ export default function DashboardPage() {
                 ]);
                 setStreak(updated);
                 setCalendar(updatedCalendar);
-                return "Veriler GitHub'dan tazelendi.";
+                return t.dashboard.refreshed;
               })
             }
           >
-            {busy === "refresh" ? "Yenileniyor…" : "Yenile"}
+            {busy === "refresh" ? t.dashboard.refreshing : t.dashboard.refresh}
           </Button>
         </CardHeader>
         <CardContent>
@@ -238,14 +262,16 @@ export default function DashboardPage() {
       {/* --- Rozet --- */}
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>Profil rozetin</CardTitle>
+          <CardTitle>{t.dashboard.badge}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="overflow-x-auto rounded-lg border bg-muted/30 p-4">
             {/* Rozet backend tarafindan SVG olarak uretilir. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={`${API_BASE_URL}/api/v1/badges/${user?.gitHubUsername}.svg`}
+              // Dil URL'de: aksi halde adres degismedigi icin tarayici rozeti
+              // onbellekten (max-age=300) gosterir ve dil degisimi ekrana yansimaz.
+              src={`${API_BASE_URL}/api/v1/badges/${user?.gitHubUsername}.svg?lang=${locale}`}
               alt="Streak rozetin"
               width={400}
               height={120}
@@ -255,15 +281,13 @@ export default function DashboardPage() {
 
           {badges && (
             <div className="space-y-3">
-              <CopyField label="Markdown (README icin)" value={badges.markdown} />
-              <CopyField label="HTML" value={badges.html} />
+              <CopyField label={t.dashboard.badgeMarkdown} value={badges.markdown} />
+              <CopyField label={t.dashboard.badgeHtml} value={badges.html} />
             </div>
           )}
 
           <p className="text-xs text-muted-foreground">
-            Not: Rozet adresi su an <code>localhost</code> uzerinde. Profil
-            README&apos;nde gorunebilmesi icin servisin canli bir adrese
-            yayinlanmasi gerekiyor.
+            {t.dashboard.badgeLocalNote}
           </p>
         </CardContent>
       </Card>
@@ -271,42 +295,88 @@ export default function DashboardPage() {
       {/* --- Bildirim ayarlari --- */}
       <Card className="mb-8">
         <CardHeader>
-          <CardTitle>Bildirim ayarlari</CardTitle>
+          <CardTitle>{t.dashboard.settings}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
-          <div className="space-y-2">
-            <label htmlFor="hour" className="text-sm font-medium">
-              Bildirim saati
-            </label>
-            <select
-              id="hour"
-              value={user?.preferredNotificationHourUtc ?? 20}
-              disabled={busy === "hour"}
-              onChange={(e) => {
-                const nextHour = Number(e.target.value);
-                run("hour", async () => {
-                  const updated = await api.updatePreferences({
-                    preferredNotificationHourUtc: nextHour,
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <label htmlFor="hour" className="text-sm font-medium">
+                {t.dashboard.hourLabel}
+              </label>
+              <select
+                id="hour"
+                value={user?.preferredNotificationHour ?? 20}
+                disabled={busy === "hour"}
+                onChange={(e) => {
+                  const nextHour = Number(e.target.value);
+                  run("hour", async () => {
+                    const updated = await api.updatePreferences({
+                      preferredNotificationHour: nextHour,
+                    });
+                    setUser(updated);
+                    return t.dashboard.hourUpdated;
                   });
-                  setUser(updated);
-                  return "Bildirim saati guncellendi.";
-                });
-              }}
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-            >
-              {HOUR_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+                }}
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+              >
+                {HOUR_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="timezone" className="text-sm font-medium">
+                {t.dashboard.timeZone}
+              </label>
+              <select
+                id="timezone"
+                value={user?.timeZoneId ?? "UTC"}
+                disabled={busy === "timezone"}
+                onChange={(e) => {
+                  const nextZone = e.target.value;
+                  run("timezone", async () => {
+                    const updated = await api.updatePreferences({ timeZoneId: nextZone });
+                    setUser(updated);
+                    // Seri "bugun"u saat dilimine gore hesaplandigi icin tazeliyoruz.
+                    setStreak(await api.getStreak());
+                    return t.dashboard.timeZoneUpdated;
+                  });
+                }}
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+              >
+                {listTimeZones().map((zone) => (
+                  <option key={zone} value={zone}>
+                    {zone}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
+
+          <p className="text-xs text-muted-foreground">
+            {t.dashboard.timeZoneNote}{" "}
+            <strong className="text-foreground">
+              {user?.timeZoneId} {formatUtcOffset(user?.timeZoneId ?? "UTC")}
+            </strong>{" "}
+            {t.dashboard.timeZoneNoteSuffix} {currentTimeIn(user?.timeZoneId ?? "UTC")}).
+            {user && detectTimeZone() !== user.timeZoneId && (
+              <>
+                {" "}
+                {t.dashboard.browserShows}{" "}
+                <strong className="text-foreground">{detectTimeZone()}</strong>{" "}
+                {t.dashboard.browserShowsSuffix}
+              </>
+            )}
+          </p>
 
           <div className="flex items-center justify-between rounded-lg border p-4">
             <div>
-              <p className="text-sm font-medium">Bildirimler</p>
+              <p className="text-sm font-medium">{t.dashboard.notifications}</p>
               <p className="text-xs text-muted-foreground">
-                Kapatirsan sana hic bildirim gonderilmez.
+                {t.dashboard.notificationsNote}
               </p>
             </div>
             <Button
@@ -320,20 +390,20 @@ export default function DashboardPage() {
                   });
                   setUser(updated);
                   return updated.isActive
-                    ? "Bildirimler acildi."
-                    : "Bildirimler kapatildi.";
+                    ? t.dashboard.notificationsOn
+                    : t.dashboard.notificationsOff;
                 })
               }
             >
-              {user?.isActive ? "Acik" : "Kapali"}
+              {user?.isActive ? t.dashboard.on : t.dashboard.off}
             </Button>
           </div>
 
           <div className="flex items-center justify-between rounded-lg border p-4">
             <div>
-              <p className="text-sm font-medium">Test bildirimi</p>
+              <p className="text-sm font-medium">{t.dashboard.testNotification}</p>
               <p className="text-xs text-muted-foreground">
-                Telefonuna push bildirimi dusuyor mu, hemen dene.
+                {t.dashboard.testNote}
               </p>
             </div>
             <Button
@@ -347,13 +417,13 @@ export default function DashboardPage() {
                 })
               }
             >
-              {busy === "test" ? "Gonderiliyor…" : "Test gonder"}
+              {busy === "test" ? t.dashboard.sending : t.dashboard.sendTest}
             </Button>
           </div>
 
           {user?.notificationRepoName && (
             <p className="text-xs text-muted-foreground">
-              Bildirimler{" "}
+              {t.dashboard.notificationsTarget}{" "}
               <a
                 href={`https://github.com/${user.gitHubUsername}/${user.notificationRepoName}/issues/${user.notificationIssueNumber}`}
                 target="_blank"
@@ -362,7 +432,7 @@ export default function DashboardPage() {
               >
                 {user.notificationRepoName}#{user.notificationIssueNumber}
               </a>{" "}
-              adresine yorum olarak dusuruluyor.
+              {t.dashboard.notificationsTargetSuffix}
             </p>
           )}
         </CardContent>
@@ -371,19 +441,17 @@ export default function DashboardPage() {
       {/* --- Hesap silme --- */}
       <Card className="border-red-500/30">
         <CardHeader>
-          <CardTitle className="text-red-400">Hesabi sil</CardTitle>
+          <CardTitle className="text-red-400">{t.dashboard.deleteTitle}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            StreakTracker&apos;daki tum verilerin (profil, streak gecmisi, bildirim
-            kayitlari) kalici olarak silinir. GitHub hesabindaki gizli repo
-            silinmez; ona sen karar verirsin.
+            {t.dashboard.deleteNote}
           </p>
           <Button
             variant="destructive"
             disabled={busy === "delete"}
             onClick={() => {
-              if (!confirm("Hesabin ve tum verilerin silinecek. Emin misin?")) return;
+              if (!confirm(t.dashboard.deleteConfirm)) return;
 
               run("delete", async () => {
                 const result = await api.deleteAccount();
@@ -394,7 +462,7 @@ export default function DashboardPage() {
               });
             }}
           >
-            Hesabimi ve verilerimi sil
+            {t.dashboard.deleteButton}
           </Button>
         </CardContent>
       </Card>

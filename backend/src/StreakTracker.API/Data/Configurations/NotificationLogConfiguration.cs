@@ -31,6 +31,9 @@ public class NotificationLogConfiguration : IEntityTypeConfiguration<Notificatio
         builder.Property(n => n.IsTest)
             .HasDefaultValue(false);
 
+        // Kilometre tasi kutlamalarinin mukerrer gonderilmedigini kontrol eden sorgu.
+        builder.HasIndex(n => new { n.UserId, n.MilestoneDay });
+
         // "Bu kullaniciya bugun bildirim gonderdik mi?" sorgusu icin.
         builder.HasIndex(n => new { n.UserId, n.SentAt });
     }

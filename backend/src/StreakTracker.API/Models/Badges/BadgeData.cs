@@ -14,7 +14,9 @@ public record BadgeData(
     int CurrentStreak,
     int LongestStreak,
     bool HasCommittedToday,
-    DateOnly? LastCommitDate);
+    DateOnly? LastCommitDate,
+    /// <summary>Kullanicinin dil tercihi; rozet adresinde ?lang verilmezse bu kullanilir.</summary>
+    Enums.AppLanguage Language = Enums.AppLanguage.Turkish);
 
 /// <summary>
 /// Rozet renk temasi. GitHub README'leri hem acik hem koyu arka planda
