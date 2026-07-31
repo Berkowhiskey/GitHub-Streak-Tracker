@@ -481,3 +481,57 @@ Zaman dilimi desteği · Telegram/e-posta fallback · Milestone bildirimleri · 
   * **Doğrulama:** `dotnet build` → **0 warning / 0 error**, `dotnet test` → **58/58 passed**, frontend `tsc --noEmit` → hatasız.
   * ℹ️ **Not:** Çalışan `dotnet run` süreci `bin/`'i kilitlediği için build geçici bir çıktı dizinine alındı (`-p:BaseOutputPath`); kullanıcının ortamına dokunulmadı.
 
+---
+
+#### 🔹 FAZ 9 — YAYINA ALMA ✅
+
+* **31 Temmuz 2026, 14:45** - ⚠️ **Deploy sırasında yakalanan risk: sunucuda commit edilmemiş yerel değişiklikler.** `git pull` *"Your local changes to `.env.example` and `docker-compose.prod.yml` would be overwritten"* diyerek durdu.
+  * **Neden kritikti:** Sunucudaki `docker-compose.prod.yml`, 30 Temmuz'da **Supabase'e göre elle düzenlenmişti** ve sunucu o gün Faz 8 commit'ini hiç almamıştı (`242349a` = Faz 7'de kalmış). Körlemesine `git checkout` yapılsaydı dosya yerel `postgres` container'lı sürüme dönebilir, uygulama **boş bir veritabanına** bağlanıp migration'ları oraya uygulayabilirdi.
+  * **İzlenen yol:** Önce `docker-compose.prod.yml`, `.env.example` ve `.env` `~/deploy-backup/` altına yedeklendi → sonra checkout + pull → ardından **yedekle yeni sürüm `diff` ile karşılaştırıldı.**
+  * **Sonuç:** Tek fark **8 satır yorum** (secrets izin uyarısı); Supabase bağlantı yapılandırması repo sürümünde zaten mevcuttu (Faz 8'de commit edilmiş). İşlevsel kayıp yok.
+  * **Ders:** Sunucuya elle yapılan düzenlemeler commit edilene kadar `git pull` her zaman veri kaybı riski taşır. Doğrulanmadan üzerine yazılmamalı.
+* **31 Temmuz 2026, 14:50** - 🚀 **FAZ 9 CANLIYA ALINDI.** `docker compose -f docker-compose.prod.yml up -d --build` → imaj yeniden derlendi (Dockerfile'a `tzdata` eklendiği için gerekliydi), API container'ı yeniden oluşturuldu.
+  * **3 migration Supabase'e uygulandı:** `AddUserTimeZone` · `AddMilestoneToNotificationLog` · `AddUserLanguage`
+  * **Geriye dönük uyumluluk canlıda doğrulandı:** Üç kullanıcının da bildirim saati korundu (10 / 14 / 20), `TimeZoneId=UTC` ve `Language=Turkish` varsayılanlarıyla geldi — yani mevcut kullanıcıların davranışı **hiç değişmedi**.
+* **31 Temmuz 2026, 14:56** - ✅ **CANLI DOĞRULAMA TAMAMLANDI**
+
+| Kontrol | Sonuç |
+|---|---|
+| `GET /health` | **200** `{"status":"healthy","database":"connected"}` |
+| Rozet (varsayılan) | **200** · Türkçe (`gunluk seri`, `REKOR`) · ETag `b16d889f8810c914` |
+| Rozet `?lang=en` | **200** · İngilizce (`day streak`, `RECORD`) · ETag `6c8b4573b03bb1ff` — **farklı** ✓ |
+| `If-None-Match` ile tekrar | **304 Not Modified** |
+| `GET /users/me` (token'sız) | **401** |
+| `/swagger` | **404** (production'da kapalı) |
+| Frontend (Vercel) | **200** · `<html lang="tr">` · başlık *StreakTracker — GitHub Serini Kaybetme* |
+| Frontend (`lang=en` çerezi) | `<html lang="en">` · başlık *Don't Break Your GitHub Streak* — **Vercel otomatik deploy'u da güncel** ✓ |
+
+---
+
+#### 🔹 FAZ 10 — 🐞 KRİTİK HATA: "Bugün commit atıldı" hiç görünmüyordu
+
+> **Belirtisi:** Kullanıcı commit/push attı, GitHub profilinde katkı göründü, ama StreakTracker 15+ dakika boyunca "bugün commit yok" demeye devam etti. Heatmap'te "Yenile" de işe yaramadı, test bildirimi de "henüz commit atılmadı" dedi. **Bu, ürünün temel vaadini bozan bir hataydı.**
+
+* **31 Temmuz 2026, 15:10** - **Eleme yöntemiyle teşhis.** Sırayla doğrulandı:
+  * Commit push edilmiş mi → ✅ `PushEvent` 11:48:27Z
+  * GitHub commit'i hesapla eşleştirmiş mi (e-posta eşleşmesi) → ✅ `author: Berkowhiskey`
+  * GitHub katkı olarak saymış mı → ✅ profil takvimi: *"1 contribution on July 31st"*
+  * Bizim GraphQL isteği hata mı alıyor → ❌ HTTP **200**, hata yok, ama bugün boş
+  * **İlk hipotez (GitHub önbelleği) YANLIŞ çıktı** ve kullanıcının paylaştığı `calendar?days=3` çıktısı onu çürüttü: dar aralıkta bugün `contributionCount: 1` geliyordu. Yani sorun sorgunun kendisinde değil, **aralığın genişliğindeydi.**
+* **31 Temmuz 2026, 15:15** - 🔬 **Kök neden kanıtlandı — GitHub'ın 1 yıl sınırı.** Aynı gün, aynı kullanıcı, yalnızca pencere genişliği farklı:
+
+  ```
+  calendar?days=364 -> {"date":"2026-07-31","contributionCount":0}
+  calendar?days=363 -> {"date":"2026-07-31","contributionCount":1}
+  ```
+
+  * `today.AddDays(-364)` ile `today` arası **iki uç dahil 365 gün** eder. `contributionsCollection` en fazla 1 yıllık aralık kabul ediyor ve aşıldığında **hata vermiyor**: son günü takvimde tutuyor ama katkı sayısını **0** döndürüyor.
+  * **Neden bu kadar sinsi:** Dün ve öncesi hep doğruydu, yalnızca *bugün* yanlıştı — yani streak geçmişi ve heatmap doğru görünüyordu. Hata ancak "bugün commit attım ama sistem görmüyor" denince fark edilebilirdi. Faz 2'den beri mevcut olması muhtemel; MVP boyunca bildirimler hep elle tetiklendiği ve `HasCommittedToday` genelde erken saatlerde hesaplandığı için gözden kaçmış olabilir.
+* **31 Temmuz 2026, 15:25** - **Düzeltmeler:**
+  1. `StreakService.ContributionWindowDays` **364 → 363** (pencere 364 güne iner, sınırın altında kalır). Kanıt niteliğindeki iki çıktı koda yorum olarak işlendi.
+  2. `StreaksController.DefaultCalendarDays` **364 → 363** — heatmap de aynı hatayı yaşıyordu; kullanıcının "Yenile" denemelerinin neden sonuç vermediğinin açıklaması budur.
+  3. `GitHubService.GetContributionDaysAsync` artık bitiş zamanını **şu ana kırpıyor** — asıl sebep bu değildi, ancak gün sonuna (`23:59:59Z`) sorgu atmak geleceğe sorgu atmak demekti.
+  4. 🐞 **Yan hata yakalandı:** `StreaksController.Calendar` "bugün"ü `DateTime.UtcNow` ile hesaplıyordu; streak servisi ise `UserClock` kullanıyor. Saat dilimi seçen bir kullanıcıda **takvim ile streak birbirini tutmayacaktı**. `UserClock`'a geçirildi.
+  5. 🐞 **Kırılma önlendi:** `frontend/lib/api.ts` içindeki `getCalendar(days = 364)` varsayılanı, backend'in yeni üst sınırı (363) nedeniyle **400 döndürüp dashboard heatmap'ini kıracaktı**. Varsayılan tamamen kaldırıldı — gün sayısı artık tek bir yerde (backend'de) tanımlı.
+  * **Doğrulama:** `dotnet build` → **0 warning / 0 error**, `dotnet test` → **58/58 passed**, frontend `tsc --noEmit` → hatasız.
+

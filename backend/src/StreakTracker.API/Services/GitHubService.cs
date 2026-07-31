@@ -108,15 +108,29 @@ public class GitHubService : IGitHubService
         if (from > to)
             throw new ArgumentException("Baslangic tarihi bitis tarihinden sonra olamaz.", nameof(from));
 
+        // Aralik gunun tamamini kapsar (00:00:00Z -> 23:59:59Z), ancak bitis asla
+        // gelecege tasmaz.
+        //
+        // Neden onemli: Bugunu sorgularken "23:59:59" gun boyunca DEGISMEYEN bir
+        // deger uretir. GitHub'in katki API'si sonuclari onbellekledigi icin, gunun
+        // erken saatinde (kullanici commit atmadan once) alinan "bugun 0" yaniti
+        // sonraki isteklerde de donebiliyor; kullanici commit atsa bile sistem
+        // gun boyu "commit yok" demeye devam ediyordu. Bitisi su ana kirparak hem
+        // gelecege sorgu atmiyoruz hem de her istek farkli bir aralik uretiyor.
+        var toDateTime = to.ToDateTime(new TimeOnly(23, 59, 59));
+        var utcNow = DateTime.UtcNow;
+
+        if (toDateTime > utcNow)
+            toDateTime = utcNow;
+
         var payload = JsonSerializer.Serialize(new
         {
             query = ContributionsQuery,
             variables = new
             {
                 login = username,
-                // Gunun tamamini kapsayacak sekilde: 00:00:00Z -> 23:59:59Z
                 from = from.ToDateTime(TimeOnly.MinValue).ToString("yyyy-MM-ddTHH:mm:ssZ"),
-                to = to.ToDateTime(new TimeOnly(23, 59, 59)).ToString("yyyy-MM-ddTHH:mm:ssZ")
+                to = toDateTime.ToString("yyyy-MM-ddTHH:mm:ssZ")
             }
         });
 

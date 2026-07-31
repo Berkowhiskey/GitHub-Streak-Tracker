@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using StreakTracker.API.Data;
 using StreakTracker.API.Models.Users;
+using StreakTracker.API.Services;
 using StreakTracker.API.Services.Interfaces;
 
 namespace StreakTracker.API.Controllers;
@@ -11,8 +12,13 @@ namespace StreakTracker.API.Controllers;
 [Authorize]
 public class StreaksController : BaseApiController
 {
-    /// <summary>Takvim gorunumunde gosterilecek varsayilan gun sayisi (yaklasik 1 yil).</summary>
-    private const int DefaultCalendarDays = 364;
+    /// <summary>
+    /// Takvim gorunumunde gosterilecek varsayilan gun sayisi (yaklasik 1 yil).
+    /// 364 degil 363: GitHub'in 1 yillik sinirini asan sorgularda son gun sessizce
+    /// dusuruluyor ve heatmap'te bugun hic gorunmuyordu. Ayrintili aciklama:
+    /// <see cref="Services.StreakService"/> icindeki ContributionWindowDays.
+    /// </summary>
+    private const int DefaultCalendarDays = 363;
 
     private readonly AppDbContext _dbContext;
     private readonly IStreakService _streakService;
@@ -69,7 +75,7 @@ public class StreaksController : BaseApiController
     /// <summary>
     /// Heatmap gorunumu icin gunluk katki takvimini dondurur.
     /// </summary>
-    /// <param name="days">Kac gun geriye gidilecegi (1-364).</param>
+    /// <param name="days">Kac gun geriye gidilecegi (1-363).</param>
     [HttpGet("me/calendar")]
     public async Task<ActionResult<IReadOnlyList<CalendarDayDto>>> Calendar(
         [FromQuery] int days = DefaultCalendarDays,
@@ -85,7 +91,9 @@ public class StreaksController : BaseApiController
         if (user is null)
             return NotFound();
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        // Takvim de kullanicinin kendi gunune gore olmali; streak hesabi da ayni
+        // saat dilimini kullaniyor. UTC'ye sabitlenirse iki gorunum birbirini tutmaz.
+        var today = UserClock.TodayIn(UserClock.Resolve(user.TimeZoneId));
 
         var contributions = await _gitHubService.GetContributionDaysAsync(
             user.AccessToken,

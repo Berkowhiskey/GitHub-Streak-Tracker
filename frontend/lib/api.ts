@@ -157,8 +157,17 @@ export const api = {
   refreshStreak: () =>
     request<StreakStatus>("/api/v1/streaks/me/refresh", { method: "POST" }),
 
-  getCalendar: (days = 364) =>
-    request<CalendarDay[]>(`/api/v1/streaks/me/calendar?days=${days}`),
+  /**
+   * Gun sayisi bilerek burada sabitlenmiyor: ust sinir GitHub'in 1 yillik
+   * kisitina bagli ve backend'de tanimli. Iki yerde tutulsaydi biri degistiginde
+   * digeri sinirin disinda kalip 400 dondururdu.
+   */
+  getCalendar: (days?: number) =>
+    request<CalendarDay[]>(
+      days
+        ? `/api/v1/streaks/me/calendar?days=${days}`
+        : "/api/v1/streaks/me/calendar",
+    ),
 
   /** Dil aciktan gonderilir: tercih kaydedilmeyi beklemeden dogru kod uretilsin. */
   getBadgeSnippets: (lang?: string) =>
