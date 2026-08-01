@@ -38,19 +38,36 @@ public class BadgeController : ControllerBase
 
     /// <summary>
     /// Kullanicinin streak rozetini SVG olarak dondurur.
-    /// Ornek: /api/v1/badges/Berkowhiskey.svg?theme=light
     /// </summary>
+    /// <param name="username">GitHub kullanici adi.</param>
+    /// <param name="theme">dark (varsayilan) · light · dracula · tokyo-night · nord · catppuccin</param>
+    /// <param name="lang">tr veya en. Verilmezse kullanicinin kayitli tercihi kullanilir.</param>
+    /// <param name="variant">full (varsayilan) veya compact.</param>
+    /// <param name="animated">false verilirse alev animasyonu kapatilir.</param>
+    /// <remarks>Ornek: /api/v1/badges/Berkowhiskey.svg?theme=dracula&amp;variant=compact</remarks>
     [HttpGet("{username}.svg")]
     [Produces("image/svg+xml")]
     public async Task<IActionResult> GetBadge(
         string username,
         [FromQuery] string? theme,
         [FromQuery] string? lang,
+        [FromQuery] string? variant,
+        [FromQuery] string? animated,
         CancellationToken cancellationToken)
     {
-        var badgeTheme = ParseTheme(theme);
-
         var data = await _streakService.GetBadgeDataAsync(username, cancellationToken);
+
+        // Adreste ?lang verilmisse o gecerlidir; yoksa kullanicinin kayitli tercihi kullanilir.
+        // Boylece README'ye Ingilizce rozet koyulabilirken kullanicinin kendi dili de korunur.
+        var language = lang is null && data is not null
+            ? data.Language
+            : AppLanguageExtensions.ParseLanguage(lang);
+
+        var options = new BadgeRenderOptions(
+            BadgeRenderOptions.ParseTheme(theme),
+            language,
+            BadgeRenderOptions.ParseVariant(variant),
+            BadgeRenderOptions.ParseAnimated(animated));
 
         if (data is null)
         {
@@ -60,16 +77,10 @@ public class BadgeController : ControllerBase
             // Bu icerik onbellege alinmamali; kullanici birazdan kaydolabilir.
             Response.Headers[HeaderNames.CacheControl] = "no-cache, no-store, must-revalidate";
 
-            return Content(
-                _badgeService.GenerateNotFoundBadge(username, badgeTheme, AppLanguageExtensions.ParseLanguage(lang)),
-                "image/svg+xml");
+            return Content(_badgeService.GenerateNotFoundBadge(username, options), "image/svg+xml");
         }
 
-        // Adreste ?lang verilmisse o gecerlidir; yoksa kullanicinin kayitli tercihi kullanilir.
-        // Boylece README'ye Ingilizce rozet koyulabilirken kullanicinin kendi dili de korunur.
-        var language = lang is null ? data.Language : AppLanguageExtensions.ParseLanguage(lang);
-
-        var etag = _badgeService.ComputeETag(data, badgeTheme, language);
+        var etag = _badgeService.ComputeETag(data, options);
 
         // Streak degismediyse icerigi yeniden gondermeye gerek yok.
         if (Request.Headers.IfNoneMatch.Any(value => value == etag))
@@ -80,11 +91,6 @@ public class BadgeController : ControllerBase
         Response.Headers[HeaderNames.ETag] = etag;
         Response.Headers[HeaderNames.CacheControl] = $"public, max-age={CacheMaxAgeSeconds}";
 
-        return Content(_badgeService.GenerateStreakBadge(data, badgeTheme, language), "image/svg+xml");
+        return Content(_badgeService.GenerateStreakBadge(data, options), "image/svg+xml");
     }
-
-    private static BadgeTheme ParseTheme(string? theme) =>
-        string.Equals(theme, "light", StringComparison.OrdinalIgnoreCase)
-            ? BadgeTheme.Light
-            : BadgeTheme.Dark;
 }

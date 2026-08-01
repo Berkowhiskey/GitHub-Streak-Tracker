@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="120" viewBox="0 0 400 120" role="img" aria-label="Berkowhiskey: 42 day streak">
+  <title>Berkowhiskey - 42 day streak (RECORD: 120)</title>
+  <defs>
+    <linearGradient id="flameGradient" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffa028"/>
+      <stop offset="100%" stop-color="#f0483e"/>
+    </linearGradient>
+  </defs>
+     <style>
+        .flame { animation: st-flicker 2.8s ease-in-out infinite; }
+        .flame-core { animation: st-core 1.9s ease-in-out infinite; }
+        @keyframes st-flicker { 0%, 100% { opacity: 1; } 50% { opacity: 0.82; } }
+        @keyframes st-core { 0%, 100% { opacity: 0.95; } 45% { opacity: 0.55; } }
+        @media (prefers-reduced-motion: reduce) {
+          .flame, .flame-core { animation: none; }
+        }
+      </style>
+
+  <rect x="0.5" y="0.5" width="399" height="119" rx="10" fill="#0d1117" stroke="#30363d"/>
+
+  <g transform="translate(30,30) scale(2.4)" opacity="1">
+    <path class="flame" d="M12 2c0 4-3 5.5-5 8-1.5 1.9-2 3.6-2 5.5C5 19.5 8 22 12 22s7-2.5 7-6.5c0-1.9-.5-3.6-2-5.5-2-2.5-5-4-5-8z" fill="url(#flameGradient)"/>
+    <path class="flame-core" d="M12 12.5c0 2-1.4 2.8-2.4 4-.7.9-1 1.7-1 2.6 0 1.9 1.5 2.9 3.4 2.9s3.4-1 3.4-2.9c0-.9-.3-1.7-1-2.6-1-1.2-2.4-2-2.4-4z" fill="#ffd75e" opacity="0.95"/>
+  </g>
+
+  <text x="102" y="70" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="42" font-weight="700" fill="#e6edf3">42</text>
+  <text x="103" y="90" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12" fill="#8b949e">day streak</text>
+      <g>
+        <rect x="198" y="46" width="46" height="19" rx="9.5" fill="url(#flameGradient)" opacity="0.16"/>
+        <text x="221" y="59.5" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="10" font-weight="700" letter-spacing="0.8" text-anchor="middle" fill="#ffa028">FIRE</text>
+      </g>
+
+  <line x1="250" y1="26" x2="250" y2="94" stroke="#30363d" stroke-width="1"/>
+
+  <text x="270" y="34" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="12" fill="#8b949e">@Berkowhiskey</text>
+
+  <text x="270" y="62" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="11" letter-spacing="0.5" fill="#8b949e">RECORD</text>
+  <text x="378" y="62" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="14" font-weight="600" text-anchor="end" fill="#e6edf3">120 days</text>
+
+  <text x="270" y="86" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="11" letter-spacing="0.5" fill="#8b949e">LAST COMMIT</text>
+  <text x="378" y="86" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="14" font-weight="600" text-anchor="end" fill="#e6edf3">1 Aug</text>
+</svg>

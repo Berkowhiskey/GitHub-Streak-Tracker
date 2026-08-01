@@ -114,6 +114,27 @@ export interface BadgeSnippets {
   html: string;
 }
 
+/** Backend'deki BadgeTheme ile birebir eslesir. */
+export type BadgeTheme =
+  | "dark"
+  | "light"
+  | "dracula"
+  | "tokyo-night"
+  | "nord"
+  | "catppuccin";
+
+export type BadgeVariant = "full" | "compact";
+
+/** Secicide gosterilecek temalar; etiketler ceviri gerektirmeyen ozel adlardir. */
+export const BADGE_THEMES: { value: BadgeTheme; label: string }[] = [
+  { value: "dark", label: "Dark" },
+  { value: "light", label: "Light" },
+  { value: "dracula", label: "Dracula" },
+  { value: "tokyo-night", label: "Tokyo Night" },
+  { value: "nord", label: "Nord" },
+  { value: "catppuccin", label: "Catppuccin" },
+];
+
 export interface OnboardingResult {
   repositoryName: string;
   issueNumber: number;
@@ -169,11 +190,41 @@ export const api = {
         : "/api/v1/streaks/me/calendar",
     ),
 
-  /** Dil aciktan gonderilir: tercih kaydedilmeyi beklemeden dogru kod uretilsin. */
-  getBadgeSnippets: (lang?: string) =>
-    request<BadgeSnippets>(
-      lang ? `/api/v1/users/me/badge?lang=${lang}` : "/api/v1/users/me/badge",
-    ),
+  /** Rozetin gorunumunu belirleyen secenekler; hepsi adresin parcasi olur. */
+  badgeUrl: (
+    username: string,
+    options: { lang: string; theme: BadgeTheme; variant: BadgeVariant },
+  ) => {
+    const params = new URLSearchParams({ lang: options.lang });
+
+    if (options.theme !== "dark") params.set("theme", options.theme);
+    if (options.variant !== "full") params.set("variant", options.variant);
+
+    return `${API_BASE_URL}/api/v1/badges/${username}.svg?${params}`;
+  },
+
+  /**
+   * README'ye yapistirilacak kod parcaciklari.
+   * Dil/tema/varyant aciktan gonderilir: tercih kaydedilmeyi beklemeden
+   * dogru kod uretilsin ve rozet onbellegi dogru anahtarla calissin.
+   */
+  getBadgeSnippets: (options?: {
+    lang?: string;
+    theme?: BadgeTheme;
+    variant?: BadgeVariant;
+  }) => {
+    const params = new URLSearchParams();
+
+    if (options?.lang) params.set("lang", options.lang);
+    if (options?.theme) params.set("theme", options.theme);
+    if (options?.variant) params.set("variant", options.variant);
+
+    const query = params.toString();
+
+    return request<BadgeSnippets>(
+      query ? `/api/v1/users/me/badge?${query}` : "/api/v1/users/me/badge",
+    );
+  },
 
   /** GitHub App kurulumunu GitHub'a sorarak dogrular. */
   getAppStatus: () =>

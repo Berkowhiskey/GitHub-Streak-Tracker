@@ -574,3 +574,39 @@ Zaman dilimi desteği · Telegram/e-posta fallback · Milestone bildirimleri · 
 | `UserClockTests` | 9 |
 | `StreakServiceTests` | **7 (yeni)** |
 | `GitHubServiceTests` | **7 (yeni)** |
+
+---
+
+#### 🔹 FAZ 12 — Rozet Paketi: Animasyon · Temalar · Rütbe · Kompakt Boyut 🎨
+
+> **Neden rozetle başlandı:** Dashboard'ı yalnızca kullanıcının kendisi görüyor; rozet ise başkalarının profil README'sinde duruyor. Projenin tek organik görünürlük alanı orası.
+
+* **1 Ağustos 2026, 16:50** - **`BadgeRenderOptions` kaydı eklendi.** Tema + dil + varyant + animasyon tek bir kayıtta toplandı.
+  * **Gerekçe:** `ISvgBadgeService`'in üç metodu da ayrı ayrı parametre alıyordu; her yeni görünüm seçeneğinde tüm imzalar değişecekti. Artık seçenek eklemek imza değiştirmiyor.
+* **1 Ağustos 2026, 16:55** - **[Tema] Dört yeni tema:** `dracula`, `tokyo-night`, `nord`, `catppuccin` (mevcut `dark`/`light` yanına). Renkler ilgili paletlerin resmi değerlerinden alındı. `BadgePalette` zaten ayrı bir yapı olduğu için maliyet yalnızca renk tanımı oldu.
+* **1 Ağustos 2026, 17:00** - **[Animasyon] Alev artık "nefes alıyor."**
+  * **SMIL değil CSS tercih edildi.** İkisi de `<img>` bağlamında çalışıyor (JavaScript çalışmıyor), ancak CSS **`prefers-reduced-motion`** desteği veriyor: işletim sisteminde "hareketi azalt" seçili kullanıcılarda animasyon kendiliğinden duruyor. Erişilebilirlik açısından belirleyici fark bu oldu.
+  * **Yalnızca `opacity` oynatılıyor.** `transform` tabanlı bir titreme, alev grup içinde ölçeklendiği için dönüşüm merkezini kaydırır ve alev yerinden oynardı.
+  * Dış alev ve iç çekirdek **farklı sürelerle** (2.8s / 1.9s) titriyor — eş zamanlı olsalardı mekanik görünürdü.
+  * Serisi olmayan kullanıcıda animasyon hiç üretilmiyor; sönük bir alevin titremesi anlamsız olurdu.
+* **1 Ağustos 2026, 17:05** - **[Rütbe] Seriye göre unvan:** Kıvılcım → Alev → Ateş → Yangın → Efsane (EN: Spark → Flame → Fire → Blaze → Legend).
+  * **Eşikler bilinçli olarak milestone bildirimleriyle aynı: 1 / 7 / 30 / 100 / 365.** Kullanıcı kutlama bildirimini aldığında rozetinde de karşılığını görüyor; iki sistem birbirini doğruluyor.
+  * Serisi olmayan kullanıcıda rütbe **hiç çizilmiyor** — "rütbesizsin" demektense sessiz kalmak tercih edildi.
+* **1 Ağustos 2026, 17:10** - **[Kompakt] `?variant=compact`** — 190×52 boyutunda, yalnızca alev + seri. README'de yan yana birden çok rozet dizmek isteyenler için.
+* **1 Ağustos 2026, 17:15** - **Panelden seçilebilir hale getirildi.** Dashboard'a tema ve boyut seçicisi eklendi; seçim anında önizlemeye ve kopyalanacak Markdown/HTML koduna yansıyor.
+  * ⚠️ **Görünümü belirleyen her şey URL'e yazılıyor** (`?theme=`, `?variant=`, `?lang=`). Faz 9'da dil için öğrenilen ders burada baştan uygulandı: rozet uzun süre önbelleklendiği (tarayıcı `max-age`, GitHub camo proxy) için aynı adresin farklı içerik döndürmesi, kullanıcının değişikliği günlerce görememesi demek.
+  * `ComputeETag` imzasına **varyant ve animasyon** da eklendi; testle sabitlendi.
+* **1 Ağustos 2026, 17:25** - **FAZ 12 TAMAMLANDI ✅**
+  * `dotnet build` → **0 warning / 0 error**, `dotnet test` → **131/131 passed** (86 → 131, **45 yeni test**)
+  * Frontend `tsc --noEmit` → hatasız, `npm run build` → başarılı
+  * Üretilen rozetler gözle doğrulandı; örnekler `rozet-onizleme/` klasörüne kaydedildi (6 tema + kompakt + İngilizce).
+  * 🐞 **Çözülen hata (ortam):** Kesinti sırasında yarım kalan `.next` önbelleği yüzünden `npm run build` *"module not found: jetbrains_mono"* veriyordu. `.next` silinip yeniden derlendi; kod kaynaklı değildi.
+
+**Yeni rozet adresi örnekleri:**
+
+```
+/api/v1/badges/{kullanici}.svg
+/api/v1/badges/{kullanici}.svg?theme=dracula
+/api/v1/badges/{kullanici}.svg?theme=tokyo-night&variant=compact
+/api/v1/badges/{kullanici}.svg?lang=en&animated=false
+```

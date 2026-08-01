@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using StreakTracker.API.Data;
 using StreakTracker.API.Enums;
 using StreakTracker.API.Models.Auth;
+using StreakTracker.API.Models.Badges;
 using StreakTracker.API.Models.Users;
 using StreakTracker.API.Options;
 using StreakTracker.API.Services.Interfaces;
@@ -142,6 +143,25 @@ public class UsersController : BaseApiController
     }
 
     /// <summary>
+    /// Tema adresin parcasi olacaksa dogrulanmis halini dondurur.
+    /// Koyu tema varsayilan oldugu icin adrese hic yazilmaz - kisa URL daha temiz.
+    /// </summary>
+    private static string ThemeQueryValue(string? theme)
+    {
+        var parsed = BadgeRenderOptions.ParseTheme(theme);
+
+        return parsed switch
+        {
+            BadgeTheme.Light => "&theme=light",
+            BadgeTheme.Dracula => "&theme=dracula",
+            BadgeTheme.TokyoNight => "&theme=tokyo-night",
+            BadgeTheme.Nord => "&theme=nord",
+            BadgeTheme.Catppuccin => "&theme=catppuccin",
+            _ => string.Empty,
+        };
+    }
+
+    /// <summary>
     /// Verilen IANA kimliginin sistemde tanimli bir saat dilimine karsilik gelip
     /// gelmedigini kontrol eder.
     /// </summary>
@@ -167,6 +187,8 @@ public class UsersController : BaseApiController
     [HttpGet("me/badge")]
     public async Task<ActionResult<BadgeSnippetsDto>> BadgeSnippets(
         [FromQuery] string? lang,
+        [FromQuery] string? theme,
+        [FromQuery] string? variant,
         CancellationToken cancellationToken)
     {
         var profile = await _dbContext.Users
@@ -192,9 +214,17 @@ public class UsersController : BaseApiController
             : profile.Language;
 
         var code = language.ToCode();
+
+        // Tema ve varyant da adrese yaziliyor - dil ile ayni gerekce: rozet uzun
+        // sureli onbelleklendigi icin gorunumu belirleyen her sey URL'de olmali.
+        var themeName = ThemeQueryValue(theme);
+        var variantName = BadgeRenderOptions.ParseVariant(variant) == BadgeVariant.Compact
+            ? "&variant=compact"
+            : string.Empty;
+
         var baseUrl = _appOptions.PublicBaseUrl.TrimEnd('/');
-        var badgeUrl = $"{baseUrl}/api/v1/badges/{username}.svg?lang={code}";
-        var badgeUrlLight = $"{baseUrl}/api/v1/badges/{username}.svg?theme=light&lang={code}";
+        var badgeUrl = $"{baseUrl}/api/v1/badges/{username}.svg?lang={code}{themeName}{variantName}";
+        var badgeUrlLight = $"{baseUrl}/api/v1/badges/{username}.svg?theme=light&lang={code}{variantName}";
         var profileUrl = $"https://github.com/{username}";
 
         return Ok(new BadgeSnippetsDto(

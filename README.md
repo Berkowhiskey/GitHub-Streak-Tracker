@@ -8,7 +8,14 @@ GitHub commit serini takip eder, seri bozulmak üzereyken **GitHub Mobile üzeri
 ![GitHub Streak](https://api.streak-tracker.me/api/v1/badges/KULLANICI_ADIN.svg)
 ```
 
-Rozet `?theme=light` ve `?lang=en` parametrelerini destekler. Dil verilmezse hesabındaki tercih kullanılır.
+| Parametre | Değerler |
+|---|---|
+| `theme` | `dark` (varsayılan) · `light` · `dracula` · `tokyo-night` · `nord` · `catppuccin` |
+| `variant` | `full` (varsayılan) · `compact` |
+| `lang` | `tr` · `en` — verilmezse hesabındaki tercih kullanılır |
+| `animated` | `false` ile alev animasyonu kapatılır |
+
+Alev canlı olarak yanıp söner; işletim sisteminde "hareketi azalt" seçiliyse animasyon kendiliğinden durur. Seriye göre bir de **rütbe** kazanırsın: Kıvılcım (1) → Alev (7) → Ateş (30) → Yangın (100) → Efsane (365).
 
 Projenin tam mimarisi, fazları ve ayrıntılı ilerleme günlüğü: [CLAUDE.md](CLAUDE.md)
 
@@ -70,7 +77,7 @@ cd frontend && npm install && npm run dev
 
 ### Testler
 ```bash
-dotnet test backend/StreakTracker.sln     # 86 test
+dotnet test backend/StreakTracker.sln     # 131 test
 cd frontend && npx tsc --noEmit           # tip kontrolü
 ```
 
@@ -128,12 +135,14 @@ git pull && docker compose -f docker-compose.prod.yml up -d --build
 
 ## Yol Haritası
 
-**Yapıldı:** GitHub OAuth + onboarding · streak hesaplama (GraphQL) · GitHub App ile bot bildirimleri · saatlik `StreakCheckJob` · dinamik SVG rozet (ETag/cache) · Next.js dashboard (heatmap, rozet kopyalama, bildirim ayarları) · token şifreleme · KVKK silme hakkı · production deploy · **saat dilimi desteği** (IANA, DST'ye dayanıklı) · **milestone bildirimleri** (7/30/100/365) · **Türkçe + İngilizce dil desteği** (arayüz, bildirimler, rozet)
+**Yapıldı:** GitHub OAuth + onboarding · streak hesaplama (GraphQL) · GitHub App ile bot bildirimleri · saatlik `StreakCheckJob` · dinamik SVG rozet (ETag/cache) · Next.js dashboard (heatmap, rozet kopyalama, bildirim ayarları) · token şifreleme · KVKK silme hakkı · production deploy · **saat dilimi desteği** (IANA, DST'ye dayanıklı) · **milestone bildirimleri** (7/30/100/365) · **Türkçe + İngilizce dil desteği** (arayüz, bildirimler, rozet) · **rozet paketi** (animasyonlu alev, 6 tema, rütbe sistemi, kompakt boyut)
 
 **Sırada:**
 - [ ] **Telegram / e-posta fallback** — `NotificationChannel` enum'ında yer var, uygulanmadı
 - [ ] **Streak dondurma** — tatil/hastalık için seri koruma hakkı
 - [ ] **Public profil sayfası** (`/u/{username}`) — rozete tıklayınca gidilecek bir yer
+- [ ] **Dashboard'da milestone ilerleme göstergesi** — "7 güne 3 gün kaldı"
+- [ ] **Yıl özeti (Wrapped)** — paylaşılabilir yıllık özet görseli
 - [ ] **Haftalık özet** — pazar günü "bu hafta 5/7 gün" raporu
 - [ ] **Public profil sayfası** (`/u/{username}`) ve leaderboard
 - [ ] **Rozet çeşitleri** — kompakt sürüm, ek temalar
