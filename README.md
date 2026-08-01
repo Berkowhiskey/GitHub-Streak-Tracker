@@ -70,7 +70,7 @@ cd frontend && npm install && npm run dev
 
 ### Testler
 ```bash
-dotnet test backend/StreakTracker.sln     # 58 test
+dotnet test backend/StreakTracker.sln     # 86 test
 cd frontend && npx tsc --noEmit           # tip kontrolü
 ```
 
@@ -133,6 +133,7 @@ git pull && docker compose -f docker-compose.prod.yml up -d --build
 **Sırada:**
 - [ ] **Telegram / e-posta fallback** — `NotificationChannel` enum'ında yer var, uygulanmadı
 - [ ] **Streak dondurma** — tatil/hastalık için seri koruma hakkı
+- [ ] **Public profil sayfası** (`/u/{username}`) — rozete tıklayınca gidilecek bir yer
 - [ ] **Haftalık özet** — pazar günü "bu hafta 5/7 gün" raporu
 - [ ] **Public profil sayfası** (`/u/{username}`) ve leaderboard
 - [ ] **Rozet çeşitleri** — kompakt sürüm, ek temalar

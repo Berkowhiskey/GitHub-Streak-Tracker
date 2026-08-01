@@ -534,4 +534,43 @@ Zaman dilimi desteği · Telegram/e-posta fallback · Milestone bildirimleri · 
   4. 🐞 **Yan hata yakalandı:** `StreaksController.Calendar` "bugün"ü `DateTime.UtcNow` ile hesaplıyordu; streak servisi ise `UserClock` kullanıyor. Saat dilimi seçen bir kullanıcıda **takvim ile streak birbirini tutmayacaktı**. `UserClock`'a geçirildi.
   5. 🐞 **Kırılma önlendi:** `frontend/lib/api.ts` içindeki `getCalendar(days = 364)` varsayılanı, backend'in yeni üst sınırı (363) nedeniyle **400 döndürüp dashboard heatmap'ini kıracaktı**. Varsayılan tamamen kaldırıldı — gün sayısı artık tek bir yerde (backend'de) tanımlı.
   * **Doğrulama:** `dotnet build` → **0 warning / 0 error**, `dotnet test` → **58/58 passed**, frontend `tsc --noEmit` → hatasız.
+* **31 Temmuz 2026, 15:45** - ✅ **FAZ 10 CANLIYA ALINDI VE DOĞRULANDI.** Sunucuda `git pull` (çalışma alanı temiz) + rebuild; API sorunsuz ayağa kalktı, `/health` → **200**.
+  * Kullanıcı panelden "Yenile" dedi ve **hata düzeldi:** `CurrentStreak 3 → 4`, `HasCommittedToday: f → t`, `LastCommitDate: 2026-07-30 → 2026-07-31`.
+  * Rozet zinciri uçtan uca doğrulandı: veritabanı **4** · rozet API **4** · **GitHub camo proxy 4** (`Age: 234`, bizim `max-age=300` başlığımıza uyuyor).
+  * ℹ️ **Kullanıcının rozeti eski görmesinin sebebi kendi tarayıcı önbelleğiydi** (`Ctrl+Shift+R` çözüyor). Ölçüm sırasında öğrenilen faydalı bilgi: camo upstream `Cache-Control` başlığına saygı gösteriyor — aynı profildeki shields.io rozeti `max-age=86400` gönderdiği için 24 saat takılı kalırken, bizim rozet en fazla **5 dakika** gecikiyor.
 
+
+---
+
+#### 🔹 FAZ 11 — Test Kapsamının Genişletilmesi (bağımlılığı olan servisler)
+
+> **Gerekçe:** Faz 10'daki hata, 58 testin hepsinin **saf sınıflar** (`StreakCalculator`, `UserClock`, `NotificationMessageBuilder`, `SvgBadgeService`) için yazıldığını, bağımlılığı olan servislerin (`StreakService`, `NotificationService`, `GitHubService`) hiç test edilmediğini açığa çıkardı. Hata da tam olarak o katmanda çıkmıştı. Kullanıcı sıradaki iş olarak yeni özellik yerine **test kapsamını** seçti.
+
+* **1 Ağustos 2026, 11:20** - **Test altyapısı kuruldu.** `NSubstitute 5.3.0` (sahte bağımlılık) ve `Microsoft.EntityFrameworkCore.InMemory 9.0.9` eklendi. `TestSupport.cs` yazıldı: her teste **izole** InMemory veritabanı (`Guid` adlı) ve varsayılan kullanıcı üreteci.
+  * `PassThroughTokenProtector` — DataProtection altyapısını ayağa kaldırmadan `AppDbContext` oluşturulabilmesi için.
+* **1 Ağustos 2026, 11:30** - **`StreakServiceTests` (7 test).** En kritiği **Faz 10 hatasının regresyon testi**: katkı penceresi iki uç dahil **364 günü aşamaz**.
+  * Ayrıca: pencerenin gereksiz daraltılmadığı, bitişin kullanıcının *bugünü* olduğu (saat dilimiyle), streak kaydının yoksa oluşturulduğu, rekorun asla düşürülmediği.
+* **1 Ağustos 2026, 11:40** - **`NotificationServiceTests` (14 test).** Ürünün "bildirim gönderilsin mi" kararı ilk kez test altına alındı: bugün commit varsa gönderilmemesi, aynı gün mükerrer gönderilmemesi, **test bildiriminin o günün gerçek uyarısını engellememesi**, milestone kutlamasının uyarıdan önce gelmesi, seri kırılıp yeniden ulaşılınca tekrar kutlanması, App kurulu değilse "gönderildi" denmemesi, başarısız denemelerin de loglanması ve **bir kullanıcıdaki hatanın saatlik turu durdurmaması**.
+* **1 Ağustos 2026, 11:45** - **`GitHubServiceTests` (7 test).** GraphQL isteğinin nasıl kurulduğu ilk kez doğrulanıyor: bitişin geleceğe taşmaması, geçmiş gün sorgusunda günün tamamının kapsanması, başlangıcın gün başı olması, yanıtın çözümlenmesi, **rate-limit'in ayırt edilmesi** ve HTTP hatalarının `GitHubServiceException` olarak yüzeye çıkması.
+  * Gerçek HTTP çağrısı yapılmıyor; `HttpMessageHandler` türetilerek giden istek yakalanıyor.
+  * 🐞 **Test hatası yakalandı (kod değil):** `DateTime.Parse` `Z` ekini görüp değeri **makinenin yerel saatine** çeviriyor; testler TR'de (+3) kayıyordu. `AdjustToUniversal | AssumeUniversal` ile açıkça UTC istendi. Aksi halde test, çalıştığı makinenin saat dilimine göre sonuç verirdi.
+* **1 Ağustos 2026, 11:50** - ✅ **TESTLERİN GERÇEKTEN KORUDUĞU KANITLANDI.** Yeşil test tek başına kanıt değildir; üç kritik koruma bilinçli olarak bozulup **kırmızıya döndüğü görüldü**, sonra geri alındı:
+
+| Bozulan davranış | Beklenen | Sonuç |
+|---|---|---|
+| `ContributionWindowDays` 363 → 364 | Pencere testi kırmızı | ✅ *"Katki penceresi 365 gun…"* |
+| `HasBeenNotifiedTodayAsync`'ten `!n.IsTest` kaldırıldı | Test-bildirimi testi kırmızı | ✅ yalnızca o test |
+| `GitHubService`'te `to` kırpması kaldırıldı | Gelecek-zaman testi kırmızı | ✅ yalnızca o test |
+
+  * ⚠️ **İlk yazdığım regresyon testi hatayı YAKALAMIYORDU:** eşiği `<= 365` koymuştum, oysa ampirik olarak 365'in kendisi bozuk davranıyor. Bozma denemesi olmasaydı bu, "koruyormuş gibi görünen" ölü bir test olarak kalacaktı. Eşik `<= 364` yapıldı.
+* **1 Ağustos 2026, 11:52** - **FAZ 11 TAMAMLANDI ✅** `dotnet build` → **0 warning / 0 error**, `dotnet test` → **86/86 passed** (58 → 86, **28 yeni test**).
+
+| Test dosyası | Test |
+|---|---|
+| `SvgBadgeServiceTests` | 15 |
+| `NotificationServiceTests` | **14 (yeni)** |
+| `NotificationMessageBuilderTests` | 11 |
+| `StreakCalculatorTests` | 10 |
+| `UserClockTests` | 9 |
+| `StreakServiceTests` | **7 (yeni)** |
+| `GitHubServiceTests` | **7 (yeni)** |
