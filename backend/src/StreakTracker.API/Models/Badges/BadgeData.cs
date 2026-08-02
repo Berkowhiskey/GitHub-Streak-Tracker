@@ -18,7 +18,9 @@ public record BadgeData(
     bool HasCommittedToday,
     DateOnly? LastCommitDate,
     /// <summary>Kullanicinin dil tercihi; rozet adresinde ?lang verilmezse bu kullanilir.</summary>
-    AppLanguage Language = AppLanguage.Turkish);
+    AppLanguage Language = AppLanguage.Turkish,
+    /// <summary>Kullanicinin kaydettigi gorunum ayarlari (JSON); adreste parametre yoksa bunlar uygulanir.</summary>
+    string? SettingsJson = null);
 
 /// <summary>
 /// Rozet renk temasi. GitHub README'leri hem acik hem koyu arka planda
@@ -35,6 +37,37 @@ public enum BadgeTheme
     Catppuccin = 5,
 }
 
+public static class BadgeThemeExtensions
+{
+    /// <summary>
+    /// Temanin adres ve API'de kullanilan metin karsiligi.
+    /// <para>
+    /// Enum'lar disariya sayi olarak degil metin olarak veriliyor: sayi verilseydi
+    /// arayuz "0" alip anlamlandiramazdi ve enum siralamasi degistiginde kayitli
+    /// tercihler sessizce baska bir temaya kayardi.
+    /// </para>
+    /// </summary>
+    public static string ToCode(this BadgeTheme theme) => theme switch
+    {
+        BadgeTheme.Light => "light",
+        BadgeTheme.Dracula => "dracula",
+        BadgeTheme.TokyoNight => "tokyo-night",
+        BadgeTheme.Nord => "nord",
+        BadgeTheme.Catppuccin => "catppuccin",
+        _ => "dark",
+    };
+}
+
+public static class BadgeVariantExtensions
+{
+    public static string ToCode(this BadgeVariant variant) => variant switch
+    {
+        BadgeVariant.Compact => "compact",
+        BadgeVariant.Max => "max",
+        _ => "full",
+    };
+}
+
 /// <summary>Rozetin boyut/duzen varyanti.</summary>
 public enum BadgeVariant
 {
@@ -43,6 +76,12 @@ public enum BadgeVariant
 
     /// <summary>Yalnizca alev ve seri sayisi. README'de yan yana rozet dizenler icin.</summary>
     Compact = 1,
+
+    /// <summary>
+    /// Genis rozet: README'de bir baslik alanini kaplar (~850px).
+    /// Ayni bilgiler ferah bir duzende ve buyuk tipografiyle sunulur.
+    /// </summary>
+    Max = 2,
 }
 
 /// <summary>
@@ -58,6 +97,36 @@ public record BadgeRenderOptions(
     BadgeVariant Variant = BadgeVariant.Full,
     bool Animated = true)
 {
+    /// <summary>Kullanicinin sectigi alev ustu rengi; null ise temanin rengi kullanilir.</summary>
+    public string? FlameFrom { get; init; }
+
+    /// <summary>Kullanicinin sectigi alev alti rengi; null ise temanin rengi kullanilir.</summary>
+    public string? FlameTo { get; init; }
+
+    /// <summary>Kullanicinin sectigi arka plan; null ise temanin rengi kullanilir.</summary>
+    public string? Background { get; init; }
+
+    /// <summary>Kullanicinin sectigi kenarlik rengi; null ise temanin rengi kullanilir.</summary>
+    public string? Border { get; init; }
+
+    /// <summary>
+    /// Temanin paletini kullanicinin sectigi renklerle birlestirir.
+    /// Renkler burada bir kez daha dogrulanir: gecersiz bir deger SVG'ye
+    /// hicbir yoldan sizmamali (savunmanin ikinci katmani).
+    /// </summary>
+    internal BadgePalette ResolvePalette()
+    {
+        var palette = BadgePalette.For(Theme);
+
+        return palette with
+        {
+            FlameFrom = BadgeSettings.IsValidColor(FlameFrom) ? FlameFrom! : palette.FlameFrom,
+            FlameTo = BadgeSettings.IsValidColor(FlameTo) ? FlameTo! : palette.FlameTo,
+            Background = BadgeSettings.IsValidColor(Background) ? Background! : palette.Background,
+            Border = BadgeSettings.IsValidColor(Border) ? Border! : palette.Border,
+        };
+    }
+
     /// <summary>Adresten gelen ham tema adini cozer; taninmayan deger koyu temaya duser.</summary>
     public static BadgeTheme ParseTheme(string? theme) => theme?.ToLowerInvariant() switch
     {
@@ -69,10 +138,12 @@ public record BadgeRenderOptions(
         _ => BadgeTheme.Dark,
     };
 
-    public static BadgeVariant ParseVariant(string? variant) =>
-        string.Equals(variant, "compact", StringComparison.OrdinalIgnoreCase)
-            ? BadgeVariant.Compact
-            : BadgeVariant.Full;
+    public static BadgeVariant ParseVariant(string? variant) => variant?.ToLowerInvariant() switch
+    {
+        "compact" => BadgeVariant.Compact,
+        "max" => BadgeVariant.Max,
+        _ => BadgeVariant.Full,
+    };
 
     /// <summary>
     /// Animasyon varsayilan olarak aciktir; <c>?animated=false</c> ile kapatilabilir.

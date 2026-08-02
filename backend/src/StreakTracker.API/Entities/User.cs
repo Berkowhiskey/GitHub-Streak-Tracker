@@ -66,6 +66,29 @@ public class User
     /// </summary>
     public AppLanguage Language { get; set; } = AppLanguage.Turkish;
 
+    /// <summary>
+    /// Kullanicinin rozet gorunum tercihleri (JSON).
+    /// <para>
+    /// Neden JSON: gorunum secenekleri sik degisiyor (tema, alev rengi, boyut, ileride
+    /// alev sekli ve ekipmanlar). Her secenek icin kolon acmak her turda migration
+    /// gerektirirdi. Bu veri yalnizca okunup ciziliyor; uzerinde sorgu yapilmiyor.
+    /// </para>
+    /// Null ise varsayilan gorunum kullanilir.
+    /// </summary>
+    public string? BadgeSettingsJson { get; set; }
+
+    /// <summary>
+    /// Rozet ayarlarinin kisa imzasi; rozet adresine <c>?s=</c> olarak eklenir.
+    /// <para>
+    /// <b>Gorevi onbellek tazelemektir, dogrulama degil.</b> Rozetler uzun sure
+    /// onbelleklenir (tarayici max-age, GitHub camo proxy). Ayarlar yalnizca
+    /// veritabaninda tutulup adres sabit kalsaydi, kullanici gorunumunu degistirdiginde
+    /// profilindeki rozet uzun sure eskisi gibi gorunurdu. Ayar degisince imza da
+    /// degisir; yeni adres onbellek icin yeni bir kaynak sayilir.
+    /// </para>
+    /// </summary>
+    public string? BadgeSettingsSignature { get; set; }
+
     /// <summary>Kullanici bildirim almayi durdurdugunda false olur; job'lar bu kullaniciyi atlar.</summary>
     public bool IsActive { get; set; } = true;
 

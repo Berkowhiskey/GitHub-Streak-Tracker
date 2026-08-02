@@ -31,6 +31,36 @@ public record BadgeSnippetsDto(
     string Html);
 
 /// <summary>
+/// Rozet gorunum ayarlarinin arayuze donen hali.
+/// <para>
+/// Enum'lar metin olarak dondurulur ("dark", "max"); sayi dondurulseydi arayuz
+/// degeri anlamlandiramaz, ayrica enum siralamasi degistiginde kayitli tercihler
+/// sessizce baska bir temaya kayardi.
+/// </para>
+/// </summary>
+public record BadgeSettingsDto(
+    string Theme,
+    string Variant,
+    bool Animated,
+    string? FlameFrom,
+    string? FlameTo,
+    string? Background,
+    string? Border);
+
+/// <summary>
+/// Rozet gorunum ayarlarini kaydetme istegi. Tum alanlar istege baglidir;
+/// verilmeyen alanlar varsayilana doner.
+/// </summary>
+public record UpdateBadgeSettingsRequest(
+    string? Theme,
+    string? Variant,
+    bool? Animated,
+    string? FlameFrom,
+    string? FlameTo,
+    string? Background,
+    string? Border);
+
+/// <summary>
 /// Dashboard'da gosterilen streak ozeti.
 /// </summary>
 public record StreakStatusDto(

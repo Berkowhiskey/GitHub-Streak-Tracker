@@ -17,6 +17,10 @@ public class SvgBadgeService : ISvgBadgeService
     private const int CompactWidth = 190;
     private const int CompactHeight = 52;
 
+    /// <summary>GitHub README'sinde icerik alani ~850px genisligindedir; max rozet onu doldurur.</summary>
+    private const int MaxWidth = 850;
+    private const int MaxHeight = 200;
+
     /// <summary>
     /// GitHub, README'deki rozetleri &lt;img&gt; olarak isler ve harici font yuklemez.
     /// Bu yuzden yalnizca isletim sistemlerinde hazir bulunan font yigini kullanilir.
@@ -52,12 +56,12 @@ public class SvgBadgeService : ISvgBadgeService
         : new BadgeLabels("gunluk seri", "REKOR", "SON COMMIT", "gun",
             "Kullanici bulunamadi", "StreakTracker'a kayitli degil", TurkishCulture);
 
-    public string GenerateStreakBadge(BadgeData data, BadgeRenderOptions options)
+    public string GenerateStreakBadge(BadgeData data, BadgeRenderOptions options) => options.Variant switch
     {
-        return options.Variant == BadgeVariant.Compact
-            ? RenderCompact(data, options)
-            : RenderFull(data, options);
-    }
+        BadgeVariant.Compact => RenderCompact(data, options),
+        BadgeVariant.Max => RenderMax(data, options),
+        _ => RenderFull(data, options),
+    };
 
     // -----------------------------------------------------------------------
     // Tam rozet
@@ -65,7 +69,7 @@ public class SvgBadgeService : ISvgBadgeService
 
     private static string RenderFull(BadgeData data, BadgeRenderOptions options)
     {
-        var palette = BadgePalette.For(options.Theme);
+        var palette = options.ResolvePalette();
         var labels = LabelsFor(options.Language);
         var username = Escape(data.Username);
 
@@ -145,7 +149,7 @@ public class SvgBadgeService : ISvgBadgeService
 
     private static string RenderCompact(BadgeData data, BadgeRenderOptions options)
     {
-        var palette = BadgePalette.For(options.Theme);
+        var palette = options.ResolvePalette();
         var labels = LabelsFor(options.Language);
         var username = Escape(data.Username);
 
@@ -173,6 +177,81 @@ public class SvgBadgeService : ISvgBadgeService
               <text x="48" y="34" font-family="{FontStack}" font-size="23" font-weight="700" fill="{palette.PrimaryText}">{data.CurrentStreak}</text>
               <text x="{48 + (CountDigits(data.CurrentStreak) * 14) + 6}" y="34" font-family="{FontStack}" font-size="11" fill="{palette.MutedText}">{labels.StreakLabel}</text>
             </svg>
+            """;
+    }
+
+    // -----------------------------------------------------------------------
+    // Max rozet - README'de bir baslik alanini kaplar
+    // -----------------------------------------------------------------------
+
+    private static string RenderMax(BadgeData data, BadgeRenderOptions options)
+    {
+        var palette = options.ResolvePalette();
+        var labels = LabelsFor(options.Language);
+        var username = Escape(data.Username);
+
+        var hasStreak = data.CurrentStreak > 0;
+        var flameFill = hasStreak ? "url(#flameGradient)" : palette.InactiveFlame;
+        var flameOpacity = hasStreak && !data.HasCommittedToday ? "0.65" : "1";
+
+        var lastCommit = data.LastCommitDate is { } date
+            ? Escape(date.ToString("d MMMM yyyy", labels.Culture))
+            : "—";
+
+        var rank = StreakRankExtensions.RankFor(data.CurrentStreak);
+        var rankName = rank == StreakRank.None ? string.Empty : rank.DisplayName(options.Language);
+
+        return $"""
+            <svg xmlns="http://www.w3.org/2000/svg" width="{MaxWidth}" height="{MaxHeight}" viewBox="0 0 {MaxWidth} {MaxHeight}" role="img" aria-label="{username}: {data.CurrentStreak} {labels.StreakLabel}">
+              <title>{username} - {data.CurrentStreak} {labels.StreakLabel} ({labels.RecordLabel}: {data.LongestStreak})</title>
+              <defs>
+                <linearGradient id="flameGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="{palette.FlameFrom}"/>
+                  <stop offset="100%" stop-color="{palette.FlameTo}"/>
+                </linearGradient>
+                <linearGradient id="numberGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="{palette.PrimaryText}"/>
+                  <stop offset="100%" stop-color="{palette.FlameTo}"/>
+                </linearGradient>
+              </defs>
+            {FlameAnimationStyle(options.Animated && hasStreak)}
+              <rect x="0.5" y="0.5" width="{MaxWidth - 1}" height="{MaxHeight - 1}" rx="16" fill="{palette.Background}" stroke="{palette.Border}"/>
+
+              <g transform="translate(56,52) scale(4.6)" opacity="{flameOpacity}">
+                <path class="flame" d="{FlameOuterPath}" fill="{flameFill}"/>
+                <path class="flame-core" d="{FlameCorePath}" fill="#ffd75e" opacity="{(hasStreak ? "0.95" : "0")}"/>
+              </g>
+
+              <text x="210" y="112" font-family="{FontStack}" font-size="86" font-weight="800" fill="url(#numberGradient)">{data.CurrentStreak}</text>
+              <text x="213" y="142" font-family="{FontStack}" font-size="18" letter-spacing="0.5" fill="{palette.MutedText}">{labels.StreakLabel}</text>
+            {MaxRankPill(rankName, palette)}
+              <line x1="470" y1="42" x2="470" y2="158" stroke="{palette.Border}" stroke-width="1"/>
+
+              <text x="510" y="62" font-family="{FontStack}" font-size="18" font-weight="600" fill="{palette.PrimaryText}">@{username}</text>
+
+              <text x="510" y="106" font-family="{FontStack}" font-size="13" letter-spacing="1" fill="{palette.MutedText}">{labels.RecordLabel}</text>
+              <text x="{MaxWidth - 56}" y="106" font-family="{FontStack}" font-size="22" font-weight="700" text-anchor="end" fill="{palette.PrimaryText}">{data.LongestStreak} {labels.DayUnit}</text>
+
+              <text x="510" y="146" font-family="{FontStack}" font-size="13" letter-spacing="1" fill="{palette.MutedText}">{labels.LastCommitLabel}</text>
+              <text x="{MaxWidth - 56}" y="146" font-family="{FontStack}" font-size="22" font-weight="700" text-anchor="end" fill="{palette.PrimaryText}">{lastCommit}</text>
+            </svg>
+            """;
+    }
+
+    /// <summary>Max rozetteki rutbe etiketi; sayinin hemen altinda, genis ve okunakli.</summary>
+    private static string MaxRankPill(string rankName, BadgePalette palette)
+    {
+        if (string.IsNullOrEmpty(rankName))
+            return string.Empty;
+
+        var pillWidth = (rankName.Length * 10.5) + 30;
+
+        return $"""
+                  <g>
+                    <rect x="210" y="26" width="{F(pillWidth)}" height="28" rx="14" fill="url(#flameGradient)" opacity="0.18"/>
+                    <text x="{F(210 + (pillWidth / 2))}" y="45" font-family="{FontStack}" font-size="14" font-weight="700" letter-spacing="1.2" text-anchor="middle" fill="{palette.FlameFrom}">{rankName}</text>
+                  </g>
+
             """;
     }
 
@@ -218,7 +297,7 @@ public class SvgBadgeService : ISvgBadgeService
 
     public string GenerateNotFoundBadge(string username, BadgeRenderOptions options)
     {
-        var palette = BadgePalette.For(options.Theme);
+        var palette = options.ResolvePalette();
         var labels = LabelsFor(options.Language);
         var safeUsername = Escape(username);
 
@@ -252,7 +331,11 @@ public class SvgBadgeService : ISvgBadgeService
             options.Theme,
             options.Language,
             options.Variant,
-            options.Animated);
+            options.Animated,
+            options.FlameFrom ?? "-",
+            options.FlameTo ?? "-",
+            options.Background ?? "-",
+            options.Border ?? "-");
 
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(signature));
 

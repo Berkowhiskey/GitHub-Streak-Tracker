@@ -42,9 +42,14 @@ public class BadgeController : ControllerBase
     /// <param name="username">GitHub kullanici adi.</param>
     /// <param name="theme">dark (varsayilan) · light · dracula · tokyo-night · nord · catppuccin</param>
     /// <param name="lang">tr veya en. Verilmezse kullanicinin kayitli tercihi kullanilir.</param>
-    /// <param name="variant">full (varsayilan) veya compact.</param>
+    /// <param name="variant">full (varsayilan) · compact · max</param>
     /// <param name="animated">false verilirse alev animasyonu kapatilir.</param>
-    /// <remarks>Ornek: /api/v1/badges/Berkowhiskey.svg?theme=dracula&amp;variant=compact</remarks>
+    /// <param name="s">
+    /// Kullanicinin kayitli gorunum ayarlarinin imzasi. <b>Icerigi okunmaz;</b> yalnizca
+    /// onbellek tazelemek icin vardir: ayar degisince imza degisir, boylece tarayici ve
+    /// GitHub camo proxy'si adresi yeni bir kaynak sayip guncel rozeti ceker.
+    /// </param>
+    /// <remarks>Ornek: /api/v1/badges/Berkowhiskey.svg?theme=dracula&amp;variant=max</remarks>
     [HttpGet("{username}.svg")]
     [Produces("image/svg+xml")]
     public async Task<IActionResult> GetBadge(
@@ -53,6 +58,11 @@ public class BadgeController : ControllerBase
         [FromQuery] string? lang,
         [FromQuery] string? variant,
         [FromQuery] string? animated,
+        [FromQuery] string? s,
+        [FromQuery] string? flameFrom,
+        [FromQuery] string? flameTo,
+        [FromQuery] string? bg,
+        [FromQuery] string? border,
         CancellationToken cancellationToken)
     {
         var data = await _streakService.GetBadgeDataAsync(username, cancellationToken);
@@ -63,11 +73,23 @@ public class BadgeController : ControllerBase
             ? data.Language
             : AppLanguageExtensions.ParseLanguage(lang);
 
-        var options = new BadgeRenderOptions(
-            BadgeRenderOptions.ParseTheme(theme),
-            language,
-            BadgeRenderOptions.ParseVariant(variant),
-            BadgeRenderOptions.ParseAnimated(animated));
+        // Temel: kullanicinin kaydettigi gorunum. Adreste acikca verilen parametreler
+        // bunu gecersiz kilar - boylece hem kisa imzali adres (?s=) hem de panelde
+        // canli onizleme (?theme=&variant=) ayni endpoint uzerinden calisir.
+        var saved = BadgeSettings.FromJson(data?.SettingsJson);
+
+        // Renkler de adresten gelebilir: panel, kullanici "kaydet"e basmadan once
+        // secimini canli gorebilmeli. Gecersiz degerler cizim sirasinda ayiklanir.
+        var options = saved.ToRenderOptions(language) with
+        {
+            Theme = theme is null ? saved.Theme : BadgeRenderOptions.ParseTheme(theme),
+            Variant = variant is null ? saved.Variant : BadgeRenderOptions.ParseVariant(variant),
+            Animated = animated is null ? saved.Animated : BadgeRenderOptions.ParseAnimated(animated),
+            FlameFrom = flameFrom ?? saved.FlameFrom,
+            FlameTo = flameTo ?? saved.FlameTo,
+            Background = bg ?? saved.Background,
+            Border = border ?? saved.Border,
+        };
 
         if (data is null)
         {

@@ -11,11 +11,13 @@ GitHub commit serini takip eder, seri bozulmak üzereyken **GitHub Mobile üzeri
 | Parametre | Değerler |
 |---|---|
 | `theme` | `dark` (varsayılan) · `light` · `dracula` · `tokyo-night` · `nord` · `catppuccin` |
-| `variant` | `full` (varsayılan) · `compact` |
+| `variant` | `full` (varsayılan) · `compact` · `max` (README'de tam genişlik) |
 | `lang` | `tr` · `en` — verilmezse hesabındaki tercih kullanılır |
 | `animated` | `false` ile alev animasyonu kapatılır |
 
 Alev canlı olarak yanıp söner; işletim sisteminde "hareketi azalt" seçiliyse animasyon kendiliğinden durur. Seriye göre bir de **rütbe** kazanırsın: Kıvılcım (1) → Alev (7) → Ateş (30) → Yangın (100) → Efsane (365).
+
+Panelden **Rozeti Özelleştir** ile alev renklerini, arka planı ve kenarlığı da değiştirebilirsin. Kaydettiğinde adrese kısa bir imza (`?s=a4f2`) eklenir — bu, GitHub'ın rozet önbelleğinin güncel görünümü çekmesini sağlar.
 
 Projenin tam mimarisi, fazları ve ayrıntılı ilerleme günlüğü: [CLAUDE.md](CLAUDE.md)
 
@@ -77,7 +79,7 @@ cd frontend && npm install && npm run dev
 
 ### Testler
 ```bash
-dotnet test backend/StreakTracker.sln     # 131 test
+dotnet test backend/StreakTracker.sln     # 169 test
 cd frontend && npx tsc --noEmit           # tip kontrolü
 ```
 
@@ -166,7 +168,7 @@ GitLingo/
 │   │   └── Entities/        User · Streak · NotificationLog
 │   └── tests/StreakTracker.Tests/
 ├── frontend/                Next.js (App Router)
-│   ├── app/                 landing · onboarding · dashboard · gizlilik
+│   ├── app/                 landing · onboarding · dashboard · dashboard/rozet · gizlilik
 │   ├── components/          heatmap · copy-field · app-install-notice · icons
 │   │                        language-provider · language-switcher
 │   ├── lib/i18n.ts          tr/en sözlükleri (tr şema görevi görür)

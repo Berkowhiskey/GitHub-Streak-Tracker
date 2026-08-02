@@ -610,3 +610,62 @@ Zaman dilimi desteği · Telegram/e-posta fallback · Milestone bildirimleri · 
 /api/v1/badges/{kullanici}.svg?theme=tokyo-night&variant=compact
 /api/v1/badges/{kullanici}.svg?lang=en&animated=false
 ```
+
+* **1 Ağustos 2026, 19:05** - 🚀 **FAZ 11 + 12 CANLIYA ALINDI VE DOĞRULANDI.** Sunucuda `git pull` (çalışma alanı temiz) + rebuild; migration yok, yalnızca kod. API sorunsuz ayağa kalktı.
+
+| Kontrol | Sonuç |
+|---|---|
+| `GET /health` | **200** `{"status":"healthy","database":"connected"}` |
+| Rozet — varsayılan (dark) | `#0d1117` · animasyon (`@keyframes st-flicker`) · `prefers-reduced-motion` ✓ |
+| Rozet — `?theme=dracula` | `#282a36` · ETag **farklı** (`a7d26e5b…` ≠ `535d30bb…`) |
+| Rozet — `?theme=tokyo-night&variant=compact` | **190×52** boyutunda döndü |
+| Rozet — `?animated=false` | `@keyframes` sayısı **0** (animasyon kapandı) |
+| Rütbe — kayıtlı tercih (EN) | **SPARK** |
+| Rütbe — `?lang=tr` | **KIVILCIM** (aynı seri, dile göre çeviriliyor) |
+| `If-None-Match` | **304 Not Modified** |
+| Geçerli XML — 6 temanın hepsi | dark · light · dracula · tokyo-night · nord · catppuccin → **hepsi OK** |
+| Kayıtsız kullanıcı rozeti | bilgilendirici rozet döndü (kırık resim yok) |
+| Frontend (Vercel) | **200** — otomatik deploy güncel |
+| `/users/me` token'sız · `/swagger` | **401** · **404** |
+
+* **1 Ağustos 2026, 19:06** - **Sıradaki tur planlandı: rozet özelleştirme.** Kullanıcı, panelde "Rozeti Özelleştir" sayfası istedi. Teknik değerlendirme yapıldı ve kapsam bilinçli olarak daraltıldı:
+  * ✅ **Öncelikli:** alev rengi ve şekilleri · alev ekipmanları (meşale vb.) · **max boyut** (README'de tam genişlik) · arka plan/tema renkleri
+  * ⏸️ **Ertelendi (kullanıcı kararı):** yazı tipi ve **glassmorphism / liquid glass**
+    * **Font kısıtı:** GitHub rozeti `<img>` olarak işlediği için SVG **harici kaynak yükleyemez** — Google Fonts sessizce yok sayılır. Seçenekler: sistem fontları (0 KB, ~3 seçenek) · base64 gömme (rozet 2 KB → 30-60 KB) · metni path'e çevirme (sunucuda font render gerekir).
+    * **Glassmorphism gerçek anlamda imkansız:** özü `backdrop-filter` ile arkasındaki içeriği bulanıklaştırmaktır; `<img>` olarak gömülen rozetin arkasında erişebileceği bir içerik yoktur. Yarı saydam panel + parlama + kenar ışığı ile ikna edici bir *taklidi* yapılabilir, ama "gerçek buzlu cam" olmaz.
+  * ⚠️ **Baştan alınan mimari karar — imzalı kısa URL.** Seçenekler arttıkça adres (`?theme=&flame=&font=&size=&c1=&c2=`) kullanılamaz hale gelir. Ayarlar veritabanında tutulup adrese kısa bir **imza** (`?s=a4f2`) konacak: ayar değişince imza değişir, önbellek kendiliğinden tazelenir. Yalnızca DB'ye bakılsaydı Faz 9/10'daki tuzağa düşerdik — aynı adres farklı içerik döndürdüğü için kullanıcı değişikliği günlerce göremezdi.
+  * **Planlanan fazlar:** 13 — ayar altyapısı + imzalı URL + max boyut + özelleştirme sayfası ve canlı önizleme · 14 — alev kütüphanesi (şekil, renk, ekipman) · 15 — modern stiller (neomorphism, claymorphism, cam görünümü).
+
+---
+
+#### 🔹 FAZ 13 — Rozet Özelleştirme: Ayar Altyapısı · Max Boyut · Özelleştirme Sayfası 🎨
+
+> **Kapsam kararı:** Kullanıcı, yazı tipi ve glassmorphism'i bilinçli olarak erteledi (ikisi de en pahalı, en az getirili). Bu tur alev rengi, boyut ve arka plan renklerine odaklandı.
+
+* **1 Ağustos 2026, 20:40** - **[Altyapı] `BadgeSettings` + imzalı URL.** Görünüm tercihleri `User.BadgeSettingsJson` alanında JSON olarak saklanıyor; adrese yalnızca 8 karakterlik bir imza (`?s=a4f2`) yazılıyor.
+  * **Neden JSON kolon:** Görünüm seçenekleri sık değişiyor (tema, renk, boyut, ileride alev şekli ve ekipmanlar). Her seçenek için kolon açmak her turda migration demekti. Bu veri yalnızca okunup çiziliyor, üzerinde sorgu yapılmıyor.
+  * ⚠️ **İmzanın görevi doğrulama değil, önbellek tazelemek.** Ayarlar yalnızca veritabanında tutulup adres sabit kalsaydı, Faz 9/10'daki tuzağa düşerdik: aynı adres farklı içerik döndürdüğü için kullanıcı görünümünü değiştirdiğinde profilindeki rozet uzun süre eski kalırdı. Ayar değişince imza değişiyor ve tarayıcı/camo adresi yeni kaynak sayıyor.
+  * `AddBadgeSettings` migration'ı: **iki nullable kolon**, mevcut kullanıcılar etkilenmiyor (null → varsayılan görünüm).
+* **1 Ağustos 2026, 20:55** - 🔐 **[Güvenlik] Renk doğrulama — beyaz liste.** Kullanıcının seçtiği renk **doğrudan SVG metnine** yazılıyor; serbest metne izin verilseydi tırnak kapatılıp öznitelik veya eleman enjekte edilebilirdi.
+  * Yalnızca `#rgb` ve `#rrggbb` kabul ediliyor. **Kaçışlamak yerine reddetmek** tercih edildi: desene uymayan değer sessizce temanın rengine düşüyor.
+  * **İki katmanlı savunma:** hem kaydederken (`Sanitized()`) hem çizerken (`ResolvePalette()`) doğrulanıyor. Kayıt katmanı bir gün atlansa bile SVG'ye geçersiz değer sızmıyor.
+* **1 Ağustos 2026, 21:10** - **[Max boyut] `?variant=max`** — 850×200, README'de bir başlık alanını kaplıyor. Büyük tipografi, gradyanlı seri sayısı, geniş rütbe etiketi.
+  * ℹ️ **Mini heatmap bilinçli olarak yapılmadı:** katkı takvimi veritabanında saklanmıyor, çizmek için her rozet isteğinde GitHub'a gitmek gerekirdi. Bu, projenin "GitHub'a hiç gitmeden milisaniyede render" ilkesini bozardı.
+* **1 Ağustos 2026, 21:30** - **[Arayüz] `/dashboard/rozet` — Rozeti Özelleştir sayfası.** Canlı önizleme + boyut, tema, dört renk (alev üstü/altı, arka plan, kenarlık) ve animasyon anahtarı. Panelde artık tek bir "🎨 Rozeti özelleştir" düğmesi var; tema/boyut seçicileri buraya taşındı.
+  * **Renkler önizlemede de adres parametresi olarak gönderiliyor** (`?flameFrom=&bg=…`). Yalnızca veritabanına bakılsaydı kullanıcı **kaydetmeden önizleme göremezdi**. Panelde uzun adres sorun değil; kısa imzalı adres yalnızca README'ye kopyalanan kod için kullanılıyor.
+  * Kaydettikten sonra README kodu yeniden üretiliyor — yeni imzayı içermesi için.
+* **1 Ağustos 2026, 22:00** - ✅ **TESTLERİN KORUDUĞU KANITLANDI.** Renk doğrulaması bilinçli olarak devre dışı bırakıldı; enjeksiyon testleri **kırmızıya döndü** (hem ayar katmanı hem çizim katmanı), sonra geri alındı. Güvenlik testi, açığı gerçekten yakaladığı gösterilmeden değersizdir.
+* **1 Ağustos 2026, 22:03** - **FAZ 13 TAMAMLANDI ✅**
+  * `dotnet build` → **0 warning / 0 error**, `dotnet test` → **169/169 passed** (131 → 169, **38 yeni test**)
+  * Frontend `tsc --noEmit` → hatasız, `npm run build` → başarılı (yeni sayfa: `/dashboard/rozet`)
+  * Üretilen rozetler gözle doğrulandı: `rozet-max.svg`, `rozet-max-dracula.svg`, `rozet-ozel-renk.svg`, `rozet-max-ozel-renk.svg` → hepsi geçerli XML, özel renkler temanın renklerini doğru eziyor.
+* **1 Ağustos 2026, 23:05** - 🐞 **Çözülen Hata (asistan kaynaklı): özelleştirme sayfası açılırken çöküyordu.**
+  * **Belirti:** `/dashboard/rozet` → `Runtime TypeError: Cannot read properties of undefined (reading 'width')`
+  * **Kök neden:** `BadgeSettings` kaydı arayüze **doğrudan** döndürülüyordu ve içindeki `enum`'lar JSON'a **sayı** olarak yazılıyordu (`{"theme":0,"variant":0}`). Arayüz ise `"dark"` / `"full"` bekliyordu; `PREVIEW_SIZE[0]` → `undefined` → çökme.
+  * **Neden `tsc` yakalamadı:** TypeScript tarafında dönen değer `BadgeSettings` olarak **beyan edilmişti**; derleyici çalışma zamanındaki gerçek JSON'u göremez. Sunucu-istemci sınırında tip beyanı tek başına güvence değil.
+  * **Düzeltme:** API artık `BadgeSettingsDto` döndürüyor; enum'lar `ToCode()` ile metne çevriliyor (`dark`, `tokyo-night`, `max`).
+    * **Ek fayda:** Sayı döndürmek, enum sıralaması ileride değişirse kayıtlı tercihlerin **sessizce başka bir temaya kayması** demekti. Metin bu riski de kapatıyor.
+  * `UsersController.ThemeQueryValue` içindeki tekrar eden dönüşüm de yeni `ToCode()`'a bağlandı.
+  * Arayüze savunma eklendi: `PREVIEW_SIZE[variant] ?? PREVIEW_SIZE.full` — beklenmedik bir değer sayfayı bir daha düşürmeyecek.
+  * **11 yeni test** bu hatayı sabitliyor: her tema/varyant için metin karşılığı ve **metnin geri aynı enum'a çözülmesi** (aksi halde kaydedilen tercih bir sonraki açılışta kaybolurdu).
+  * **Doğrulama:** `dotnet test` → **180/180 passed** (169 → 180), frontend `tsc --noEmit` → hatasız.

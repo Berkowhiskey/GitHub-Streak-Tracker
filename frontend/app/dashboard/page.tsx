@@ -1,15 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   api,
   ApiError,
-  BADGE_THEMES,
+  API_BASE_URL,
   type AppInstallationStatus,
   type BadgeSnippets,
-  type BadgeTheme,
-  type BadgeVariant,
   type CalendarDay,
   type CurrentUser,
   type StreakStatus,
@@ -38,8 +37,6 @@ export default function DashboardPage() {
   const [streak, setStreak] = useState<StreakStatus | null>(null);
   const [calendar, setCalendar] = useState<CalendarDay[]>([]);
   const [badges, setBadges] = useState<BadgeSnippets | null>(null);
-  const [badgeTheme, setBadgeTheme] = useState<BadgeTheme>("dark");
-  const [badgeVariant, setBadgeVariant] = useState<BadgeVariant>("full");
   const [appStatus, setAppStatus] = useState<AppInstallationStatus | null>(null);
 
   const [loading, setLoading] = useState(true);
@@ -64,7 +61,7 @@ export default function DashboardPage() {
       const [streakData, calendarData, badgeData, appStatusData] = await Promise.all([
         api.getStreak(),
         api.getCalendar().catch(() => [] as CalendarDay[]),
-        api.getBadgeSnippets({ lang: locale, theme: badgeTheme, variant: badgeVariant }),
+        api.getBadgeSnippets({ lang: locale }),
         // App kurulumu sorgulanamazsa panel yine de acilmali.
         api.getAppStatus().catch(() => null),
       ]);
@@ -89,23 +86,18 @@ export default function DashboardPage() {
     loadAll();
   }, [loadAll]);
 
-  // Dil, tema veya boyut degisince README kod parcaciklari yeniden uretilmeli.
+  // Dil degisince README kod parcaciklari yeni dile gore yeniden uretilmeli.
   // Yalnizca kod parcaciklari tazeleniyor; takvim GitHub'a gittigi icin
   // sayfanin tamamini yeniden yuklemek gereksiz yavaslik olurdu.
-  const snippetKey = useRef(`${locale}|${badgeTheme}|${badgeVariant}`);
+  const snippetLocale = useRef(locale);
 
   useEffect(() => {
-    const key = `${locale}|${badgeTheme}|${badgeVariant}`;
+    if (snippetLocale.current === locale) return;
 
-    if (snippetKey.current === key) return;
+    snippetLocale.current = locale;
 
-    snippetKey.current = key;
-
-    api
-      .getBadgeSnippets({ lang: locale, theme: badgeTheme, variant: badgeVariant })
-      .then(setBadges)
-      .catch(() => {});
-  }, [locale, badgeTheme, badgeVariant]);
+    api.getBadgeSnippets({ lang: locale }).then(setBadges).catch(() => {});
+  }, [locale]);
 
   async function run(key: string, action: () => Promise<string | null>) {
     setBusy(key);
@@ -282,52 +274,23 @@ export default function DashboardPage() {
               // Gorunumu belirleyen her sey (dil, tema, varyant) URL'de: aksi halde
               // adres degismedigi icin tarayici rozeti onbellekten (max-age=300)
               // gosterir ve secim ekrana yansimaz.
-              src={api.badgeUrl(user?.gitHubUsername ?? "", {
-                lang: locale,
-                theme: badgeTheme,
-                variant: badgeVariant,
-              })}
+              // Kullanicinin kaydettigi gorunum kullanilir; dil adreste, cunku
+              // dil degisimi aninda yansimali (adres degismezse tarayici
+              // onbellekten gosterir ve degisiklik gorunmez).
+              src={`${API_BASE_URL}/api/v1/badges/${user?.gitHubUsername}.svg?lang=${locale}`}
               alt="Streak rozetin"
-              width={badgeVariant === "compact" ? 190 : 400}
-              height={badgeVariant === "compact" ? 52 : 120}
+              width={400}
+              height={120}
               className="max-w-full"
             />
           </div>
 
-          <div className="flex flex-wrap gap-4">
-            <div className="space-y-1.5">
-              <label htmlFor="badge-theme" className="text-xs text-muted-foreground">
-                {t.dashboard.badgeTheme}
-              </label>
-              <select
-                id="badge-theme"
-                value={badgeTheme}
-                onChange={(e) => setBadgeTheme(e.target.value as BadgeTheme)}
-                className="block rounded-md border bg-background px-3 py-1.5 text-sm"
-              >
-                {BADGE_THEMES.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <label htmlFor="badge-variant" className="text-xs text-muted-foreground">
-                {t.dashboard.badgeVariant}
-              </label>
-              <select
-                id="badge-variant"
-                value={badgeVariant}
-                onChange={(e) => setBadgeVariant(e.target.value as BadgeVariant)}
-                className="block rounded-md border bg-background px-3 py-1.5 text-sm"
-              >
-                <option value="full">{t.dashboard.badgeVariantFull}</option>
-                <option value="compact">{t.dashboard.badgeVariantCompact}</option>
-              </select>
-            </div>
-          </div>
+          <Link
+            href="/dashboard/rozet"
+            className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/80"
+          >
+            🎨 {t.dashboard.badgeCustomize}
+          </Link>
 
           {badges && (
             <div className="space-y-3">

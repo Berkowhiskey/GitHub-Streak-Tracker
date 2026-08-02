@@ -143,6 +143,67 @@ public class UsersController : BaseApiController
     }
 
     /// <summary>
+    /// Kullanicinin kayitli rozet gorunum ayarlarini dondurur.
+    /// </summary>
+    [HttpGet("me/badge-settings")]
+    public async Task<ActionResult<BadgeSettingsDto>> GetBadgeSettings(CancellationToken cancellationToken)
+    {
+        var json = await _dbContext.Users
+            .Where(u => u.Id == CurrentUserId)
+            .Select(u => u.BadgeSettingsJson)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return Ok(ToDto(BadgeSettings.FromJson(json)));
+    }
+
+    private static BadgeSettingsDto ToDto(BadgeSettings settings) => new(
+        settings.Theme.ToCode(),
+        settings.Variant.ToCode(),
+        settings.Animated,
+        settings.FlameFrom,
+        settings.FlameTo,
+        settings.Background,
+        settings.Border);
+
+    /// <summary>
+    /// Rozet gorunum ayarlarini kaydeder ve yeni imzayi uretir.
+    /// </summary>
+    [HttpPut("me/badge-settings")]
+    public async Task<ActionResult<BadgeSettingsDto>> UpdateBadgeSettings(
+        [FromBody] UpdateBadgeSettingsRequest request,
+        CancellationToken cancellationToken)
+    {
+        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == CurrentUserId, cancellationToken);
+
+        if (user is null)
+            return NotFound();
+
+        // Renkler burada ayiklanir: gecersiz bir deger veritabanina hic girmez.
+        // (Cizim sirasinda ikinci bir dogrulama daha var - savunmanin iki katmani.)
+        var settings = new BadgeSettings
+        {
+            Theme = BadgeRenderOptions.ParseTheme(request.Theme),
+            Variant = BadgeRenderOptions.ParseVariant(request.Variant),
+            Animated = request.Animated ?? true,
+            FlameFrom = request.FlameFrom,
+            FlameTo = request.FlameTo,
+            Background = request.Background,
+            Border = request.Border,
+        }.Sanitized();
+
+        user.BadgeSettingsJson = settings.ToJson();
+        user.BadgeSettingsSignature = settings.ComputeSignature();
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Rozet gorunumu guncellendi. Kullanici: {Username}, Imza: {Signature}",
+            user.GitHubUsername, user.BadgeSettingsSignature);
+
+        return Ok(ToDto(settings));
+    }
+
+    /// <summary>
     /// Tema adresin parcasi olacaksa dogrulanmis halini dondurur.
     /// Koyu tema varsayilan oldugu icin adrese hic yazilmaz - kisa URL daha temiz.
     /// </summary>
@@ -150,15 +211,8 @@ public class UsersController : BaseApiController
     {
         var parsed = BadgeRenderOptions.ParseTheme(theme);
 
-        return parsed switch
-        {
-            BadgeTheme.Light => "&theme=light",
-            BadgeTheme.Dracula => "&theme=dracula",
-            BadgeTheme.TokyoNight => "&theme=tokyo-night",
-            BadgeTheme.Nord => "&theme=nord",
-            BadgeTheme.Catppuccin => "&theme=catppuccin",
-            _ => string.Empty,
-        };
+        // Koyu tema varsayilan; adrese yazmiyoruz ki URL kisa kalsin.
+        return parsed == BadgeTheme.Dark ? string.Empty : $"&theme={parsed.ToCode()}";
     }
 
     /// <summary>
@@ -193,7 +247,7 @@ public class UsersController : BaseApiController
     {
         var profile = await _dbContext.Users
             .Where(u => u.Id == CurrentUserId)
-            .Select(u => new { u.GitHubUsername, u.Language })
+            .Select(u => new { u.GitHubUsername, u.Language, u.BadgeSettingsSignature })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (profile is null)
@@ -222,8 +276,15 @@ public class UsersController : BaseApiController
             ? "&variant=compact"
             : string.Empty;
 
+        // Kullanici gorunumunu kaydettiyse adres kisa kalir: ayarlar veritabanindan
+        // okunur, adrese yalnizca imza yazilir. Imza ayar degisince degisir ve
+        // onbellegin (tarayici + GitHub camo) taze icerik cekmesini saglar.
+        var signature = string.IsNullOrEmpty(profile.BadgeSettingsSignature)
+            ? string.Empty
+            : $"&s={profile.BadgeSettingsSignature}";
+
         var baseUrl = _appOptions.PublicBaseUrl.TrimEnd('/');
-        var badgeUrl = $"{baseUrl}/api/v1/badges/{username}.svg?lang={code}{themeName}{variantName}";
+        var badgeUrl = $"{baseUrl}/api/v1/badges/{username}.svg?lang={code}{themeName}{variantName}{signature}";
         var badgeUrlLight = $"{baseUrl}/api/v1/badges/{username}.svg?theme=light&lang={code}{variantName}";
         var profileUrl = $"https://github.com/{username}";
 

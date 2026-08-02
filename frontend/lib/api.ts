@@ -123,7 +123,18 @@ export type BadgeTheme =
   | "nord"
   | "catppuccin";
 
-export type BadgeVariant = "full" | "compact";
+export type BadgeVariant = "full" | "compact" | "max";
+
+/** Backend'deki BadgeSettings ile birebir eslesir. */
+export interface BadgeSettings {
+  theme: BadgeTheme;
+  variant: BadgeVariant;
+  animated: boolean;
+  flameFrom: string | null;
+  flameTo: string | null;
+  background: string | null;
+  border: string | null;
+}
 
 /** Secicide gosterilecek temalar; etiketler ceviri gerektirmeyen ozel adlardir. */
 export const BADGE_THEMES: { value: BadgeTheme; label: string }[] = [
@@ -190,18 +201,53 @@ export const api = {
         : "/api/v1/streaks/me/calendar",
     ),
 
-  /** Rozetin gorunumunu belirleyen secenekler; hepsi adresin parcasi olur. */
+  /**
+   * Onizleme adresi. Gorunumu belirleyen her sey adrese yazilir; aksi halde
+   * adres degismedigi icin tarayici rozeti onbellekten gosterir ve secim
+   * ekrana yansimaz.
+   */
   badgeUrl: (
     username: string,
-    options: { lang: string; theme: BadgeTheme; variant: BadgeVariant },
+    options: {
+      lang: string;
+      theme: BadgeTheme;
+      variant: BadgeVariant;
+      animated?: boolean;
+      flameFrom?: string | null;
+      flameTo?: string | null;
+      background?: string | null;
+      border?: string | null;
+    },
   ) => {
     const params = new URLSearchParams({ lang: options.lang });
 
-    if (options.theme !== "dark") params.set("theme", options.theme);
-    if (options.variant !== "full") params.set("variant", options.variant);
+    params.set("theme", options.theme);
+    params.set("variant", options.variant);
+
+    if (options.animated === false) params.set("animated", "false");
+    if (options.flameFrom) params.set("flameFrom", options.flameFrom);
+    if (options.flameTo) params.set("flameTo", options.flameTo);
+    if (options.background) params.set("bg", options.background);
+    if (options.border) params.set("border", options.border);
 
     return `${API_BASE_URL}/api/v1/badges/${username}.svg?${params}`;
   },
+
+  getBadgeSettings: () => request<BadgeSettings>("/api/v1/users/me/badge-settings"),
+
+  updateBadgeSettings: (settings: {
+    theme: BadgeTheme;
+    variant: BadgeVariant;
+    animated: boolean;
+    flameFrom: string | null;
+    flameTo: string | null;
+    background: string | null;
+    border: string | null;
+  }) =>
+    request<BadgeSettings>("/api/v1/users/me/badge-settings", {
+      method: "PUT",
+      body: JSON.stringify(settings),
+    }),
 
   /**
    * README'ye yapistirilacak kod parcaciklari.

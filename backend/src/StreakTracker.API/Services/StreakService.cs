@@ -115,7 +115,8 @@ public class StreakService : IStreakService
                 u.Streak != null ? u.Streak.LongestStreak : 0,
                 u.Streak != null && u.Streak.HasCommittedToday,
                 u.Streak != null ? u.Streak.LastCommitDate : null,
-                u.Language))
+                u.Language,
+                u.BadgeSettingsJson))
             .FirstOrDefaultAsync(cancellationToken);
     }
 }
