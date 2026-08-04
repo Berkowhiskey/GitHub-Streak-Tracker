@@ -115,4 +115,44 @@ public class BadgeController : ControllerBase
 
         return Content(_badgeService.GenerateStreakBadge(data, options), "image/svg+xml");
     }
+
+    /// <summary>
+    /// Tek bir rutbenin alev seklini dondurur (panelde rutbe galerisi icin).
+    /// Kullaniciya ozel veri icermez; herkese acik ve uzun sureli onbelleklenebilir.
+    /// </summary>
+    /// <param name="rank">spark · flame · fire · blaze · legend</param>
+    /// <param name="theme">Renk temasi.</param>
+    /// <param name="lang">Etiket dili.</param>
+    /// <param name="locked">true ise alev sonuk cizilir (henuz kazanilmamis rutbe).</param>
+    /// <param name="flameFrom">Ozel alev ustu rengi.</param>
+    /// <param name="flameTo">Ozel alev alti rengi.</param>
+    [HttpGet("flames/{rank}.svg")]
+    [Produces("image/svg+xml")]
+    public IActionResult GetFlamePreview(
+        string rank,
+        [FromQuery] string? theme,
+        [FromQuery] string? lang,
+        [FromQuery] bool locked = false,
+        [FromQuery] string? flameFrom = null,
+        [FromQuery] string? flameTo = null)
+    {
+        if (!Enum.TryParse<StreakRank>(rank, ignoreCase: true, out var parsed) ||
+            parsed == StreakRank.None)
+        {
+            return NotFound();
+        }
+
+        var options = new BadgeRenderOptions(
+            BadgeRenderOptions.ParseTheme(theme),
+            AppLanguageExtensions.ParseLanguage(lang))
+        {
+            FlameFrom = flameFrom,
+            FlameTo = flameTo,
+        };
+
+        // Sekiller sabittir; yalnizca uygulama guncellenince degisir.
+        Response.Headers[HeaderNames.CacheControl] = "public, max-age=86400";
+
+        return Content(_badgeService.GenerateFlamePreview(parsed, options, locked), "image/svg+xml");
+    }
 }

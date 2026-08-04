@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <!--
+    ORNEK EKIPMAN: mesale sapi.
+    Alevin ALTINA gelir; bu yuzden sekil kutunun alt yarisina cizilmistir.
+    Game Icons'tan indirilen dosyalarda konumlandirmayi dert etme -
+    ben Faz 14'te her ekipman icin konum ve olcegi ayarlayacagim.
+  -->
+  <path d="M10.6 15h2.8l-.5 7.2a.9.9 0 0 1-.9.8h-.1a.9.9 0 0 1-.9-.8L10.6 15z"/>
+  <path d="M9.4 14.2h5.2v1.6H9.4z"/>
+</svg>

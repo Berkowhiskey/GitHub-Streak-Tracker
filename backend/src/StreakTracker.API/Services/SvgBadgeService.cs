@@ -28,13 +28,40 @@ public class SvgBadgeService : ISvgBadgeService
     private const string FontStack =
         "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif";
 
-    /// <summary>Alevin dis hatti (24x24 kutuda cizilmis yol).</summary>
-    private const string FlameOuterPath =
-        "M12 2c0 4-3 5.5-5 8-1.5 1.9-2 3.6-2 5.5C5 19.5 8 22 12 22s7-2.5 7-6.5c0-1.9-.5-3.6-2-5.5-2-2.5-5-4-5-8z";
+    /// <summary>
+    /// Alevi cizer. Sekil kullanicinin RUTBESINE gore secilir - secilebilir degil,
+    /// kazanilir; boylece rozet seriyi tek bakista anlatan bir isarete donusur.
+    /// </summary>
+    /// <param name="rank">Kullanicinin rutbesi.</param>
+    /// <param name="x">Alevin sol ust kosesinin yatay konumu.</param>
+    /// <param name="y">Alevin sol ust kosesinin dikey konumu.</param>
+    /// <param name="size">Alevin kaplayacagi kare alanin kenar uzunlugu (px).</param>
+    /// <param name="fill">Govde dolgusu (gradyan veya sonuk renk).</param>
+    /// <param name="opacity">Grup saydamligi.</param>
+    /// <param name="showCore">Ic cekirdek cizilsin mi (serisi olmayan kullanicida gizlenir).</param>
+    private static string RenderFlame(
+        StreakRank rank, double x, double y, double size, string fill, string opacity, bool showCore)
+    {
+        var asset = FlameLibrary.For(rank);
 
-    /// <summary>Alevin ic (sicak) cekirdegi.</summary>
-    private const string FlameCorePath =
-        "M12 12.5c0 2-1.4 2.8-2.4 4-.7.9-1 1.7-1 2.6 0 1.9 1.5 2.9 3.4 2.9s3.4-1 3.4-2.9c0-.9-.3-1.7-1-2.6-1-1.2-2.4-2-2.4-4z";
+        // Kaynak dosyalar farkli boyutlarda geliyor (Game Icons 512, elle cizilenler 24);
+        // olcek her zaman dosyanin kendi viewBox'ina gore hesaplanir.
+        var scale = size / asset.ViewBoxSize;
+
+        var body = string.Join("\n    ", asset.BodyPaths.Select(p =>
+            $"""<path class="flame" d="{p}" fill="{fill}"/>"""));
+
+        var core = showCore && asset.CorePaths.Length > 0
+            ? "\n    " + string.Join("\n    ", asset.CorePaths.Select(p =>
+                $"""<path class="flame-core" d="{p}" fill="#ffd75e" opacity="0.95"/>"""))
+            : string.Empty;
+
+        return $"""
+              <g transform="translate({F(x)},{F(y)}) scale({F(scale)})" opacity="{opacity}">
+                {body}{core}
+              </g>
+            """;
+    }
 
     /// <summary>Ay kisaltmalari sunucunun yerel ayarindan bagimsiz olmalidir.</summary>
     private static readonly CultureInfo TurkishCulture = new("tr-TR");
@@ -97,10 +124,7 @@ public class SvgBadgeService : ISvgBadgeService
             {FlameAnimationStyle(options.Animated && hasStreak)}
               <rect x="0.5" y="0.5" width="{Width - 1}" height="{Height - 1}" rx="10" fill="{palette.Background}" stroke="{palette.Border}"/>
 
-              <g transform="translate(30,30) scale(2.4)" opacity="{flameOpacity}">
-                <path class="flame" d="{FlameOuterPath}" fill="{flameFill}"/>
-                <path class="flame-core" d="{FlameCorePath}" fill="#ffd75e" opacity="{(hasStreak ? "0.95" : "0")}"/>
-              </g>
+            {RenderFlame(rank, 30, 30, 57.6, flameFill, flameOpacity, hasStreak)}
 
               <text x="102" y="70" font-family="{FontStack}" font-size="42" font-weight="700" fill="{palette.PrimaryText}">{data.CurrentStreak}</text>
               <text x="103" y="90" font-family="{FontStack}" font-size="12" fill="{palette.MutedText}">{labels.StreakLabel}</text>
@@ -169,10 +193,7 @@ public class SvgBadgeService : ISvgBadgeService
             {FlameAnimationStyle(options.Animated && hasStreak)}
               <rect x="0.5" y="0.5" width="{CompactWidth - 1}" height="{CompactHeight - 1}" rx="8" fill="{palette.Background}" stroke="{palette.Border}"/>
 
-              <g transform="translate(14,13) scale(1.1)" opacity="{flameOpacity}">
-                <path class="flame" d="{FlameOuterPath}" fill="{flameFill}"/>
-                <path class="flame-core" d="{FlameCorePath}" fill="#ffd75e" opacity="{(hasStreak ? "0.95" : "0")}"/>
-              </g>
+            {RenderFlame(StreakRankExtensions.RankFor(data.CurrentStreak), 14, 13, 26.4, flameFill, flameOpacity, hasStreak)}
 
               <text x="48" y="34" font-family="{FontStack}" font-size="23" font-weight="700" fill="{palette.PrimaryText}">{data.CurrentStreak}</text>
               <text x="{48 + (CountDigits(data.CurrentStreak) * 14) + 6}" y="34" font-family="{FontStack}" font-size="11" fill="{palette.MutedText}">{labels.StreakLabel}</text>
@@ -217,10 +238,7 @@ public class SvgBadgeService : ISvgBadgeService
             {FlameAnimationStyle(options.Animated && hasStreak)}
               <rect x="0.5" y="0.5" width="{MaxWidth - 1}" height="{MaxHeight - 1}" rx="16" fill="{palette.Background}" stroke="{palette.Border}"/>
 
-              <g transform="translate(56,52) scale(4.6)" opacity="{flameOpacity}">
-                <path class="flame" d="{FlameOuterPath}" fill="{flameFill}"/>
-                <path class="flame-core" d="{FlameCorePath}" fill="#ffd75e" opacity="{(hasStreak ? "0.95" : "0")}"/>
-              </g>
+            {RenderFlame(rank, 56, 52, 110.4, flameFill, flameOpacity, hasStreak)}
 
               <text x="210" y="112" font-family="{FontStack}" font-size="86" font-weight="800" fill="url(#numberGradient)">{data.CurrentStreak}</text>
               <text x="213" y="142" font-family="{FontStack}" font-size="18" letter-spacing="0.5" fill="{palette.MutedText}">{labels.StreakLabel}</text>
@@ -292,6 +310,39 @@ public class SvgBadgeService : ISvgBadgeService
     }
 
     // -----------------------------------------------------------------------
+    // Rutbe galerisi icin tek alev
+    // -----------------------------------------------------------------------
+
+    public string GenerateFlamePreview(StreakRank rank, BadgeRenderOptions options, bool locked)
+    {
+        const int size = 72;
+        const double flameSize = 52;
+
+        var palette = options.ResolvePalette();
+
+        // Kazanilmamis rutbe sonuk cizilir: kullanici neyi hedefledigini gorur
+        // ama henuz sahip olmadigi belli olur.
+        var fill = locked ? palette.InactiveFlame : "url(#flameGradient)";
+        var opacity = locked ? "0.45" : "1";
+
+        var offset = (size - flameSize) / 2;
+
+        return $"""
+            <svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" viewBox="0 0 {size} {size}" role="img" aria-label="{rank.DisplayName(options.Language)}">
+              <title>{rank.DisplayName(options.Language)}</title>
+              <defs>
+                <linearGradient id="flameGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="{palette.FlameFrom}"/>
+                  <stop offset="100%" stop-color="{palette.FlameTo}"/>
+                </linearGradient>
+              </defs>
+            {FlameAnimationStyle(options.Animated && !locked)}
+            {RenderFlame(rank, offset, offset, flameSize, fill, opacity, showCore: !locked)}
+            </svg>
+            """;
+    }
+
+    // -----------------------------------------------------------------------
     // Bulunamadi rozeti
     // -----------------------------------------------------------------------
 
@@ -306,9 +357,7 @@ public class SvgBadgeService : ISvgBadgeService
               <title>@{safeUsername} {labels.NotFoundDetail}</title>
               <rect x="0.5" y="0.5" width="{Width - 1}" height="{Height - 1}" rx="10" fill="{palette.Background}" stroke="{palette.Border}"/>
 
-              <g transform="translate(30,30) scale(2.4)">
-                <path d="{FlameOuterPath}" fill="{palette.InactiveFlame}"/>
-              </g>
+            {RenderFlame(StreakRank.None, 30, 30, 57.6, palette.InactiveFlame, "1", showCore: false)}
 
               <text x="102" y="58" font-family="{FontStack}" font-size="17" font-weight="600" fill="{palette.PrimaryText}">{labels.NotFoundTitle}</text>
               <text x="102" y="80" font-family="{FontStack}" font-size="12" fill="{palette.MutedText}">@{safeUsername} {labels.NotFoundDetail}</text>

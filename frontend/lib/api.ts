@@ -136,6 +136,20 @@ export interface BadgeSettings {
   border: string | null;
 }
 
+export type RankKey = "spark" | "flame" | "fire" | "blaze" | "legend";
+
+/**
+ * Rutbeler ve esikleri. Esikler backend'deki StreakRankExtensions.RankFor ile
+ * ayni; milestone bildirimleriyle de ortak (1 / 7 / 30 / 100 / 365).
+ */
+export const RANKS: { key: RankKey; threshold: number; tr: string; en: string }[] = [
+  { key: "spark", threshold: 1, tr: "KIVILCIM", en: "SPARK" },
+  { key: "flame", threshold: 7, tr: "ALEV", en: "FLAME" },
+  { key: "fire", threshold: 30, tr: "ATES", en: "FIRE" },
+  { key: "blaze", threshold: 100, tr: "YANGIN", en: "BLAZE" },
+  { key: "legend", threshold: 365, tr: "EFSANE", en: "LEGEND" },
+];
+
 /** Secicide gosterilecek temalar; etiketler ceviri gerektirmeyen ozel adlardir. */
 export const BADGE_THEMES: { value: BadgeTheme; label: string }[] = [
   { value: "dark", label: "Dark" },
@@ -231,6 +245,28 @@ export const api = {
     if (options.border) params.set("border", options.border);
 
     return `${API_BASE_URL}/api/v1/badges/${username}.svg?${params}`;
+  },
+
+  /**
+   * Tek bir rutbenin alev sekli. Kullaniciya ozel veri icermez;
+   * kazanilmamis rutbeler `locked` ile sonuk cizilir.
+   */
+  flamePreviewUrl: (
+    rank: RankKey,
+    options: {
+      theme: BadgeTheme;
+      locked: boolean;
+      flameFrom?: string | null;
+      flameTo?: string | null;
+    },
+  ) => {
+    const params = new URLSearchParams({ theme: options.theme });
+
+    if (options.locked) params.set("locked", "true");
+    if (options.flameFrom) params.set("flameFrom", options.flameFrom);
+    if (options.flameTo) params.set("flameTo", options.flameTo);
+
+    return `${API_BASE_URL}/api/v1/badges/flames/${rank}.svg?${params}`;
   },
 
   getBadgeSettings: () => request<BadgeSettings>("/api/v1/users/me/badge-settings"),

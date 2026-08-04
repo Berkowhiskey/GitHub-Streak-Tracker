@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="850" height="200" viewBox="0 0 850 200" role="img" aria-label="Berkowhiskey: 180 gunluk seri">
+  <title>Berkowhiskey - 180 gunluk seri (REKOR: 200)</title>
+  <defs>
+    <linearGradient id="flameGradient" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffa028"/>
+      <stop offset="100%" stop-color="#f0483e"/>
+    </linearGradient>
+    <linearGradient id="numberGradient" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e6edf3"/>
+      <stop offset="100%" stop-color="#f0483e"/>
+    </linearGradient>
+  </defs>
+     <style>
+        .flame { animation: st-flicker 2.8s ease-in-out infinite; }
+        .flame-core { animation: st-core 1.9s ease-in-out infinite; }
+        @keyframes st-flicker { 0%, 100% { opacity: 1; } 50% { opacity: 0.82; } }
+        @keyframes st-core { 0%, 100% { opacity: 0.95; } 45% { opacity: 0.55; } }
+        @media (prefers-reduced-motion: reduce) {
+          .flame, .flame-core { animation: none; }
+        }
+      </style>
+
+  <rect x="0.5" y="0.5" width="849" height="199" rx="16" fill="#0d1117" stroke="#30363d"/>
+
+  <g transform="translate(56,52) scale(0.22)" opacity="1">
+    <path class="flame" d="M290.72 13.396c-79.94 38.87 9.013 152.854-74.402 191.567 21.946-43.348 30.93-118.453-39.69-169.342v.003c57.41 92.152-39.578 101.073 10.68 235.037.884 2.098 1.724 4.216 2.467 6.383-.86-2.16-1.682-4.286-2.468-6.383-17.056-40.42-58.356-69.442-47.875-146.558-92.397 139.136 61.726 179.234 39.968 296.226-20.22-52.322-96.068-38.077-65.88-94.582-81.617 64.483 68 99.77-25.282 168.19h349.006c-44.892-35.722-38.733-108.488-9.29-92.71-14.63-42.75-54.515-10.383-56.477 22.604-15.55-101.866 86.23-108.78 74.388-226.197-19.395 67.794-73.366 65.522-92.71 55.322 68.964-32.598 91.818-125.04 17.15-161.248 23.033 28.635 15.785 123.762-33.243 84.998-18.193-14.385-70.182-60.235-46.34-163.31zm-165.656 4.778c-6.35.16-12.967 2.232-19.62 6.578 38.005 7.337 57.7 61.682 52.892 122.08 34.38-59.225 5.54-129.638-33.272-128.658zm218.29 44.633c8.507 47.444-17.105 75.028-38.82 30.52 22.306 83.01 95.766 93.25 38.82-30.52zm103.84 93.88c35.616 36.454 25.294 104.74-14.133 160.057 81.137-36.52 81.26-153.81 14.133-160.057zm-379.22 78.917c19.553 54.61-90.043 56.077 5.62 157.767-38.953-68.595 67.41-69.424-5.62-157.766z" fill="url(#flameGradient)"/>
+  </g>
+
+  <text x="210" y="112" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="86" font-weight="800" fill="url(#numberGradient)">180</text>
+  <text x="213" y="142" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="18" letter-spacing="0.5" fill="#8b949e">gunluk seri</text>
+      <g>
+        <rect x="210" y="26" width="93" height="28" rx="14" fill="url(#flameGradient)" opacity="0.18"/>
+        <text x="256.5" y="45" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="14" font-weight="700" letter-spacing="1.2" text-anchor="middle" fill="#ffa028">YANGIN</text>
+      </g>
+
+  <line x1="470" y1="42" x2="470" y2="158" stroke="#30363d" stroke-width="1"/>
+
+  <text x="510" y="62" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="18" font-weight="600" fill="#e6edf3">@Berkowhiskey</text>
+
+  <text x="510" y="106" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="13" letter-spacing="1" fill="#8b949e">REKOR</text>
+  <text x="794" y="106" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="22" font-weight="700" text-anchor="end" fill="#e6edf3">200 gun</text>
+
+  <text x="510" y="146" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="13" letter-spacing="1" fill="#8b949e">SON COMMIT</text>
+  <text x="794" y="146" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="22" font-weight="700" text-anchor="end" fill="#e6edf3">3 Ağustos 2026</text>
+</svg>

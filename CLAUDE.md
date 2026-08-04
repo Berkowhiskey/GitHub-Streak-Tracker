@@ -669,3 +669,60 @@ Zaman dilimi desteği · Telegram/e-posta fallback · Milestone bildirimleri · 
   * Arayüze savunma eklendi: `PREVIEW_SIZE[variant] ?? PREVIEW_SIZE.full` — beklenmedik bir değer sayfayı bir daha düşürmeyecek.
   * **11 yeni test** bu hatayı sabitliyor: her tema/varyant için metin karşılığı ve **metnin geri aynı enum'a çözülmesi** (aksi halde kaydedilen tercih bir sonraki açılışta kaybolurdu).
   * **Doğrulama:** `dotnet test` → **180/180 passed** (169 → 180), frontend `tsc --noEmit` → hatasız.
+
+---
+
+#### 🔹 FAZ 13 — YAYINA ALMA ✅
+
+* **3 Ağustos 2026, 13:50** - 🔌 **Deploy öncesi engel: SSH bağlantısı kurulamadı.** `ssh` → `Connection timed out`.
+  * **Teşhis (eleme yöntemiyle):** Sunucunun **443 portu açık** ve site çalışıyordu (`/health` → 200), yalnızca **22 kapalıydı**. Ardından `github.com:22` denendi — o da kapalı çıktı.
+  * **Sonuç: Sorun sunucuda değil, kullanıcının o anki ağındaydı** (ev/ISP bağlantısı 22 portunu engelliyor). Önceki deploy'lar mobil hotspot üzerinden yapılmıştı.
+  * **Çözüm:** Kullanıcı mobil hotspot'a geçti, bağlantı kuruldu. *(Kalıcı seçenek olarak SSH'a ikinci bir port (2222) açmak not edildi.)*
+  * **Ders:** "Sunucuya erişemiyorum" her zaman sunucu sorunu değildir. Başka bir hedefin aynı portunu denemek, sorunu tek adımda ağ/sunucu diye ikiye ayırıyor.
+* **3 Ağustos 2026, 13:58** - 🚀 **FAZ 13 CANLIYA ALINDI VE DOĞRULANDI.**
+  * `AddBadgeSettings` migration'ı Supabase'e uygulandı. **Üç kullanıcının da ayarı `null`** (varsayılan görünüm) — geriye dönük uyumluluk canlıda doğrulandı.
+
+| Kontrol | Sonuç |
+|---|---|
+| `GET /health` | **200** `{"status":"healthy","database":"connected"}` |
+| Rozet — `?variant=max` | `width="850" height="200"` ✓ |
+| Rozet — özel renk (`?flameFrom=&flameTo=&bg=`) | Üç özel renk de uygulandı; temanın `#0d1117` arka planı **ezildi** ✓ |
+| 🔐 **Enjeksiyon denemesi** (`?bg=%23000"/><script>…`) | Üretilen SVG'de `<script>` sayısı **0** ✓ |
+| `GET /users/me/badge-settings` (token'sız) | **401** |
+| Max rozet — geçerli XML (dracula) | **OK** |
+| `/dashboard/rozet` (Vercel) | **200** — otomatik deploy güncel |
+| `/swagger` | **404** (production'da kapalı) |
+
+* **3 Ağustos 2026, 14:30** - **[Faz 14 hazırlığı] Rozet görsel kütüphanesi klasörleri kuruldu.**
+  * `Assets/Badges/flames/` (alev şekilleri) ve `Assets/Badges/accessories/` (meşale, taç vb.) oluşturuldu; her birine format örneği bir dosya kondu (`classic.svg`, `torch.svg`) ve kullanıcı için `README.md` rehberi yazıldı.
+  * **Gömülü kaynak (`EmbeddedResource`) tercih edildi**, dosya kopyalama değil: Docker imajında yol sorunu çıkmaz ve rozet üretiminde disk okuması yapılmaz — "milisaniyede render" ilkesi korunur.
+  * ✅ **4 otomatik doğrulama testi eklendi.** Kullanıcı klasöre dosya attığında `dotnet test` bunları hemen denetliyor:
+    * dosyalar pakete gerçekten gömülüyor mu,
+    * hepsi geçerli XML mi (bozuk SVG rozeti komple kırar),
+    * **sabit renk içeriyor mu** (`fill="#..."` varsa kullanıcının renk seçimi çalışmaz — Game Icons dosyalarında bu öntanımlı gelir),
+    * her dosyada en az bir `<path>` var mı (boş dosya rozeti sessizce bozar).
+  * `dotnet test` → **184/184 passed** (180 → 184).
+
+---
+
+#### 🔹 FAZ 14 — Rütbe Alevleri: Şekil Seçilmez, Kazanılır 🔥
+
+> **Kullanıcının tasarım değişikliği:** Alev şekli başta *seçilebilir* bir özellik olarak planlanmıştı. Kullanıcı bunun yerine **rütbeye bağlanmasını** önerdi — ve bu daha iyi bir tasarım çıktı.
+>
+> **Gerekçe:** Seçilebilir olsaydı herkes en görkemli alevi seçerdi ve rütbe sistemi anlamını yitirirdi; 6 günlük kullanıcı ile 365 günlük kullanıcı aynı görünürdü. Kazanılan görünüm, seçilen görünümden daha değerlidir — ayrıca rozet, seriyi tek bakışta anlatan bir **sosyal işarete** dönüşür. Özgürlük kaybı yok: şekil kazanılıyor, **renkler hâlâ seçilebiliyor**.
+
+* **3 Ağustos 2026, 15:10** - **Kullanıcı 4 alev ekledi** (`candle-light`, `burning-embers`, `celebration-fire`, `volcano`) — hepsi Game Icons'tan.
+  * ✅ **Faz 13'te eklenen doğrulama testi işini yaptı:** dosyalar `fill="#fff"` ve siyah arka plan katmanı (`M0 0h512v512H0z`) ile geldiği için test **kırmızı döndü ve dosya adını söyledi**. Tahmin etmeye gerek kalmadı.
+  * Dosyalar temizlendi: arka plan katmanı, sabit renkler ve gereksiz sarmalayıcılar kaldırıldı.
+* **3 Ağustos 2026, 15:20** - **`FlameLibrary` yazıldı.** Gömülü SVG'ler açılışta bir kez okunup bellekte tutuluyor; rozet üretiminde disk okuması yok.
+  * ⚠️ **Ölçekleme dosyanın kendi `viewBox`'ına göre hesaplanıyor.** Game Icons 512, elle çizilenler 24 kullanıyor — sabit bir çarpan kullanılsaydı alev ya nokta kadar kalır ya rozetin dışına taşardı. Doğrulandı: `classic` → `scale(2.4)`, `candle-light` → `scale(0.11)`, ikisi de aynı 57.6px'e oturuyor.
+  * **Dayanıklılık:** bozuk veya eksik bir dosya tüm rozet servisini düşürmüyor — o şekil atlanıyor, çizim klasik alevle sürüyor.
+* **3 Ağustos 2026, 15:30** - **Rütbe → alev eşleşmesi** (eşikler milestone bildirimleriyle aynı): Kıvılcım `candle-light` · Alev `classic` · Ateş `burning-embers` · Yangın `celebration-fire` · Efsane `volcano`.
+  * Üç varyantta (normal/kompakt/max) ve "bulunamadı" rozetinde tek bir `RenderFlame` yardımcısı kullanılıyor; alev mantığı tek yerde.
+* **3 Ağustos 2026, 15:40** - **[Arayüz] Rütbe galerisi.** Özelleştirme sayfasında beş rütbe de gösteriliyor: kazanılanlar renkli ve animasyonlu, kazanılmayanlar **soluk + kilitli** ve *"X gün kaldı"* bilgisiyle.
+  * **Neden önemli:** Milestone'lar şimdiye kadar yalnızca bildirimde vardı, panelde hiç görünmüyordu. Artık kullanıcı neyi hedeflediğini görüyor.
+  * Yeni endpoint: `GET /api/v1/badges/flames/{rank}.svg` — kullanıcıya özel veri içermediği için 24 saat önbelleklenebiliyor.
+* **3 Ağustos 2026, 15:45** - **FAZ 14 TAMAMLANDI ✅**
+  * `dotnet build` → **0 warning / 0 error**, `dotnet test` → **201/201 passed** (184 → 201, **17 yeni test**)
+  * Frontend `tsc --noEmit` → hatasız, `npm run build` → başarılı
+  * Önizlemeler `rozet-onizleme/rutbe-*.svg` olarak üretildi (5 rütbe × normal + max).

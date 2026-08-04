@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="850" height="200" viewBox="0 0 850 200" role="img" aria-label="Berkowhiskey: 3 gunluk seri">
+  <title>Berkowhiskey - 3 gunluk seri (REKOR: 23)</title>
+  <defs>
+    <linearGradient id="flameGradient" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffa028"/>
+      <stop offset="100%" stop-color="#f0483e"/>
+    </linearGradient>
+    <linearGradient id="numberGradient" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e6edf3"/>
+      <stop offset="100%" stop-color="#f0483e"/>
+    </linearGradient>
+  </defs>
+     <style>
+        .flame { animation: st-flicker 2.8s ease-in-out infinite; }
+        .flame-core { animation: st-core 1.9s ease-in-out infinite; }
+        @keyframes st-flicker { 0%, 100% { opacity: 1; } 50% { opacity: 0.82; } }
+        @keyframes st-core { 0%, 100% { opacity: 0.95; } 45% { opacity: 0.55; } }
+        @media (prefers-reduced-motion: reduce) {
+          .flame, .flame-core { animation: none; }
+        }
+      </style>
+
+  <rect x="0.5" y="0.5" width="849" height="199" rx="16" fill="#0d1117" stroke="#30363d"/>
+
+  <g transform="translate(56,52) scale(0.22)" opacity="1">
+    <path class="flame" d="M258.75 23.563c-27.913 0-93.875 87.237-93.875 158.593 0 59.35 29.018 79.715 68.625 94.875-15.47-15.607-26.03-43.75-26.03-76.186 0-49.232 31.292-89.188 53.25-89.188 21.132 0 53.25 39.955 53.25 89.188 0 30.39-9.41 56.833-23.283 72.937 36.097-18.016 61.938-35.72 61.938-91.624 0-71.356-66.786-158.594-93.875-158.594zm6.72 175.906-18.5 2.686c5.764 39.366 6.665 69.034 4.25 97.875-24.957-.97-49.677-5.972-73.69-14.75v95.47c-3.295 25.668-22.434 30.526-22.093 53.47.29 19.547 14.998 26.003 22.094 17.624v36.28h164.69v-88.343c8.615 10.89 27.17 3.06 27.53-21.31.432-29.117-24.597-34.605-27.53-68.814V285.28c-23.916 8.88-48.17 13.702-72.314 14.72 2.337-29.752 1.383-60.792-4.437-100.53z" fill="url(#flameGradient)"/>
+  </g>
+
+  <text x="210" y="112" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="86" font-weight="800" fill="url(#numberGradient)">3</text>
+  <text x="213" y="142" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="18" letter-spacing="0.5" fill="#8b949e">gunluk seri</text>
+      <g>
+        <rect x="210" y="26" width="114" height="28" rx="14" fill="url(#flameGradient)" opacity="0.18"/>
+        <text x="267" y="45" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="14" font-weight="700" letter-spacing="1.2" text-anchor="middle" fill="#ffa028">KIVILCIM</text>
+      </g>
+
+  <line x1="470" y1="42" x2="470" y2="158" stroke="#30363d" stroke-width="1"/>
+
+  <text x="510" y="62" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="18" font-weight="600" fill="#e6edf3">@Berkowhiskey</text>
+
+  <text x="510" y="106" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="13" letter-spacing="1" fill="#8b949e">REKOR</text>
+  <text x="794" y="106" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="22" font-weight="700" text-anchor="end" fill="#e6edf3">23 gun</text>
+
+  <text x="510" y="146" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="13" letter-spacing="1" fill="#8b949e">SON COMMIT</text>
+  <text x="794" y="146" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" font-size="22" font-weight="700" text-anchor="end" fill="#e6edf3">3 Ağustos 2026</text>
+</svg>

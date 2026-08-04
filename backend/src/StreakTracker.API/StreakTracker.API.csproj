@@ -21,4 +21,14 @@
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!--
+      Rozet gorselleri (alev sekilleri ve ekipmanlar) gomulu kaynak olarak
+      paketlenir. Dosya olarak kopyalanmiyor: boylece Docker imajinda yol
+      sorunu cikmaz ve calisma aninda disk okumasi yapilmaz - rozet uretimi
+      tamamen bellekten beslenir.
+    -->
+    <EmbeddedResource Include="Assets\Badges\**\*.svg" />
+  </ItemGroup>
+
 </Project>

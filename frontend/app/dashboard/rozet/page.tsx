@@ -7,6 +7,7 @@ import {
   api,
   ApiError,
   BADGE_THEMES,
+  RANKS,
   type BadgeSnippets,
   type BadgeTheme,
   type BadgeVariant,
@@ -30,6 +31,7 @@ export default function CustomizeBadgePage() {
   const { t, locale } = useLanguage();
 
   const [user, setUser] = useState<CurrentUser | null>(null);
+  const [currentStreak, setCurrentStreak] = useState(0);
   const [snippets, setSnippets] = useState<BadgeSnippets | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -46,9 +48,15 @@ export default function CustomizeBadgePage() {
   const [border, setBorder] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([api.getCurrentUser(), api.getBadgeSettings()])
-      .then(([current, settings]) => {
+    Promise.all([
+      api.getCurrentUser(),
+      api.getBadgeSettings(),
+      // Rutbe galerisinde hangi alevlerin kazanildigini gostermek icin gerekli.
+      api.getStreak().catch(() => null),
+    ])
+      .then(([current, settings, streak]) => {
         setUser(current);
+        setCurrentStreak(streak?.currentStreak ?? 0);
         setTheme(settings.theme);
         setVariant(settings.variant);
         setAnimated(settings.animated);
@@ -252,7 +260,69 @@ export default function CustomizeBadgePage() {
           </CardContent>
         </Card>
 
-        {/* --- Animasyon --- */}
+          {/* --- Rutbeler --- */}
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base">{t.customize.ranksTitle}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-xs text-muted-foreground">{t.customize.ranksNote}</p>
+
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              {RANKS.map((rank) => {
+                const unlocked = currentStreak >= rank.threshold;
+                const isCurrent =
+                  unlocked &&
+                  !RANKS.some(
+                    (r) => r.threshold > rank.threshold && currentStreak >= r.threshold,
+                  );
+
+                return (
+                  <div
+                    key={rank.key}
+                    className={`rounded-lg border p-3 text-center transition ${
+                      isCurrent ? "border-primary bg-primary/10" : "bg-muted/20"
+                    }`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={api.flamePreviewUrl(rank.key, {
+                        theme,
+                        locked: !unlocked,
+                        flameFrom,
+                        flameTo,
+                      })}
+                      alt={locale === "en" ? rank.en : rank.tr}
+                      width={72}
+                      height={72}
+                      className="mx-auto"
+                    />
+
+                    <p className="mt-1 text-xs font-semibold tracking-wide">
+                      {locale === "en" ? rank.en : rank.tr}
+                    </p>
+
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      {unlocked ? (
+                        isCurrent ? (
+                          <span className="text-primary">{t.customize.rankCurrent}</span>
+                        ) : (
+                          t.customize.rankUnlocked
+                        )
+                      ) : (
+                        <>
+                          🔒 {rank.threshold - currentStreak} {t.customize.rankDaysLeft}
+                        </>
+                      )}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+      {/* --- Animasyon --- */}
         <Card className="md:col-span-2">
           <CardContent className="flex flex-wrap items-center justify-between gap-4 pt-6">
             <div>

@@ -14,6 +14,17 @@ public interface ISvgBadgeService
     string GenerateStreakBadge(BadgeData data, BadgeRenderOptions options);
 
     /// <summary>
+    /// Tek bir rutbenin alev seklini kare bir alanda cizer.
+    /// Panelde rutbe galerisini gostermek icin kullanilir.
+    /// </summary>
+    /// <param name="rank">Cizilecek rutbe.</param>
+    /// <param name="options">Tema ve renk secenekleri.</param>
+    /// <param name="locked">
+    /// Rutbe henuz kazanilmadiysa true; alev sonuk ve animasyonsuz cizilir.
+    /// </param>
+    string GenerateFlamePreview(StreakRank rank, BadgeRenderOptions options, bool locked);
+
+    /// <summary>
     /// Kullanici bulunamadiginda gosterilecek rozeti cizer.
     /// README'de kirik resim yerine anlamli bir gorsel cikmasi icin kullanilir.
     /// </summary>

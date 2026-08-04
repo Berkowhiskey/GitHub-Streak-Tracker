@@ -239,6 +239,13 @@ const tr = {
     snippetTitle: "README kodun",
     snippetNote:
       "Gorunumunu her degistirdiginde bu kod da degisir - profilindeki rozetin guncellenmesi icin yeniden kopyalaman gerekir.",
+    ranksTitle: "Rutbeler",
+    ranksNote:
+      "Alev sekli secilmez, kazanilir: serin buyudukce rozetindeki alev de degisir.",
+    rankCurrent: "Su anki rutben",
+    rankUnlocked: "Kazanildi",
+    rankDaysLeft: "gun kaldi",
+    rankRequirement: "gun",
   },
 
   privacy: {
@@ -464,6 +471,13 @@ const en: typeof tr = {
     snippetTitle: "Your README code",
     snippetNote:
       "This code changes every time you change the look - copy it again so the badge on your profile updates.",
+    ranksTitle: "Ranks",
+    ranksNote:
+      "The flame isn't chosen, it's earned: as your streak grows, so does the flame on your badge.",
+    rankCurrent: "Your current rank",
+    rankUnlocked: "Earned",
+    rankDaysLeft: "days to go",
+    rankRequirement: "days",
   },
 
   privacy: {
